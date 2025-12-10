@@ -1,0 +1,44 @@
+{
+  "name": "secure-cycle",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-google-maps/api": "^2.20.7",
+    "@react-oauth/google": "^0.12.1",
+    "axios": "^1.6.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "firebase": "^10.8.0",
+    "google-auth-library": "^10.5.0",
+    "html2canvas": "^1.4.1",
+    "install": "^0.13.0",
+    "jsonwebtoken": "^9.0.2",
+    "jspdf": "^3.0.4",
+    "lucide-react": "^0.554.0",
+    "mongoose": "^9.0.0",
+    "otpauth": "^9.4.1",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-is": "^19.2.0",
+    "react-qr-reader": "^3.0.0-beta-1",
+    "recharts": "^3.4.1"
+  },
+  "devDependencies": {
+    "@types/html2canvas": "^0.5.35",
+    "@types/jspdf": "^1.3.3",
+    "@types/qrcode.react": "^1.0.5",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "3.3.2",
+    "typescript": "~5.8.2",
+    "vite": "^6.4.1"
+  }
+}

@@ -1,0 +1,1195 @@
+import React, { useContext, useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { ConfigContext } from '../contexts/ConfigContext';
+import { QrCode, Clock, MapPin, History, Ticket, Map, FileText, ChevronRight, Navigation, Zap, X, CheckCircle, Loader2, Trash2, Eye, Scan, Camera, IndianRupee, Bike, Car, CreditCard, Smartphone, Wallet, ArrowLeft, Lock, SmartphoneNfc } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { BookingSuccess } from '../components/BookingSuccess';
+import { TicketView } from '../components/TicketView';
+import { db } from '../utils/firebaseConfig';
+import { collection, onSnapshot, addDoc, updateDoc, doc, Timestamp, query, where, orderBy, getDoc } from 'firebase/firestore';
+import { Stand, Booking, PaymentMethod } from '../types';
+
+interface UserDashboardProps {
+    onNavigate: (view: 'dashboard' | 'settings') => void;
+}
+
+// Local interface for UI state (combines ID and details)
+interface ActiveTicketDetails {
+    id: string; // MongoDB _id for API calls
+    ticketId: string; // Display ID (10 digits)
+    userName: string;
+    bookedDate: string;
+    standName: string;
+    vehicleType: string;
+    vehicleNumber: string;
+    vehicleModel?: string;
+    standId: string;
+    status?: 'active' | 'completed' | 'cancelled'; // Added status for history viewing
+    amount?: string; // Added amount for history viewing
+    paymentMethod?: string;
+}
+
+interface HistoryItem {
+    id: string;
+    date: string;
+    location: string;
+    duration: string;
+    cost: string;
+    status: 'Paid' | 'Cancelled';
+    paymentMethod: string;
+    raw: any; // Store full data for modal view
+}
+
+export const UserDashboard: React.FC<UserDashboardProps> = ({ onNavigate }) => {
+    const { user } = useAuth();
+    const config = useContext(ConfigContext);
+    const baseRate = config?.baseRate || 50.00;
+
+    // State for features
+    const [showStands, setShowStands] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+
+    // Data State
+    const [stands, setStands] = useState<Stand[]>([]);
+    const [loadingStands, setLoadingStands] = useState(true);
+
+    // Ticket Generation State
+    const [showTicketModal, setShowTicketModal] = useState(false); // Controls the initial input modal
+    const [showSuccessModal, setShowSuccessModal] = useState(false); // Controls Success Screen
+    const [showTicketView, setShowTicketView] = useState(false); // Controls Detailed Ticket View
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const [generatedTicket, setGeneratedTicket] = useState<string | null>(null);
+    const [selectedBikeType, setSelectedBikeType] = useState<'standard' | 'electric' | 'car'>('standard');
+
+    // Booking State
+    const [selectedStand, setSelectedStand] = useState<Stand | null>(null);
+
+    // Vehicle Details State
+    const [vehicleNumber, setVehicleNumber] = useState('');
+    const [vehicleModel, setVehicleModel] = useState('');
+
+    // Stores the full ticket object for the view
+    const [activeTicketDetails, setActiveTicketDetails] = useState<ActiveTicketDetails | null>(null);
+
+    // History State
+    const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+
+    // Scanner & Payment State
+    const [showScanModal, setShowScanModal] = useState(false);
+    const [scanStep, setScanStep] = useState<'camera' | 'result' | 'payment' | 'processing' | 'success'>('camera');
+    const [scanResult, setScanResult] = useState<{ duration: string; cost: string; time: string; amount: number } | null>(null);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('wallet-default');
+
+    // Fetched Payment Methods from Firestore
+    const [savedPaymentMethods, setSavedPaymentMethods] = useState<PaymentMethod[]>([]);
+
+    // --- API: Fetch Stands ---
+    useEffect(() => {
+        const fetchStands = async () => {
+            try {
+                const response = await fetch('http://localhost:3002/api/stands');
+                const data = await response.json();
+                if (data.success) {
+                    // Filter for active stands and map _id to id
+                    const activeStands = data.data
+                        .filter((stand: any) => stand.status === 'active')
+                        .map((stand: any) => ({
+                            ...stand,
+                            id: stand._id,
+                            // Map GeoJSON location to lat/lng if needed, or keep as is if unused
+                            location: stand.location?.coordinates ? {
+                                lat: stand.location.coordinates[1],
+                                lng: stand.location.coordinates[0]
+                            } : stand.location
+                        }));
+                    setStands(activeStands);
+                }
+                setLoadingStands(false);
+            } catch (error) {
+                console.error("Error fetching stands:", error);
+                setLoadingStands(false);
+            }
+        };
+
+        fetchStands();
+
+        // Poll for updates every 30 seconds
+        const interval = setInterval(fetchStands, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // --- PERSISTENCE LOGIC ---
+    useEffect(() => {
+        if (!user) return;
+
+        // 1. Restore Active Ticket (We trust localStorage for UI state, but ID refers to Firestore doc)
+        const userId = user.id || (user as any)._id;
+        const storedTicketJson = localStorage.getItem(`active_ticket_${userId}`);
+        if (storedTicketJson) {
+            try {
+                const ticket = JSON.parse(storedTicketJson);
+                // Ensure status is active for the local storage restore
+                ticket.status = 'active';
+                setActiveTicketDetails(ticket);
+                setGeneratedTicket(ticket.ticketId);
+
+                // Restore form defaults
+                setSelectedBikeType(ticket.vehicleType === 'car' ? 'car' : (ticket.vehicleType === 'electric' ? 'electric' : 'standard'));
+                setVehicleNumber(ticket.vehicleNumber);
+                setVehicleModel(ticket.vehicleModel || '');
+            } catch (e) {
+                console.error("Failed to parse stored ticket", e);
+                localStorage.removeItem(`active_ticket_${user.id}`);
+            }
+        } else {
+            setActiveTicketDetails(null);
+            setGeneratedTicket(null);
+
+            // Pre-fill from User Profile (Settings)
+            if (user.vehicleNumber) setVehicleNumber(user.vehicleNumber);
+            if (user.vehicleModel) setVehicleModel(user.vehicleModel);
+            if (user.vehicleType) {
+                setSelectedBikeType(user.vehicleType === 'car' ? 'car' : 'standard');
+            }
+        }
+
+        // 2. Fetch History from API (Unique to this User ID)
+        const fetchHistory = async () => {
+            try {
+                const userId = user.id || (user as any)._id;
+                console.log("Fetching history for userId:", userId);
+                const response = await fetch(`http://localhost:3002/api/bookings/user/${userId}`);
+                const data = await response.json();
+                console.log("History API response:", data);
+
+                if (data.success) {
+                    const historyData: HistoryItem[] = data.data
+                        .filter((booking: any) => {
+                            const isHistory = booking.status === 'completed' || booking.status === 'cancelled';
+                            if (!isHistory) console.log("Skipping active booking:", booking._id);
+                            return isHistory;
+                        })
+                        .map((booking: any) => {
+                            const date = new Date(booking.startTime).toLocaleDateString();
+                            return {
+                                id: booking._id,
+                                date: date,
+                                location: booking.standName || 'Unknown Stand',
+                                duration: booking.status === 'completed' ? 'Completed' : 'Cancelled',
+                                cost: `₹${booking.totalAmount ? booking.totalAmount.toFixed(2) : '0.00'}`,
+                                status: booking.status === 'completed' ? 'Paid' : 'Cancelled',
+                                paymentMethod: booking.paymentMethod || '-',
+                                raw: { ...booking, id: booking._id, standId: booking.stand || booking.standId }
+                            };
+                        })
+                        .sort((a: any, b: any) => new Date(b.raw.startTime).getTime() - new Date(a.raw.startTime).getTime());
+
+                    setHistoryItems(historyData);
+                }
+            } catch (error) {
+                console.error("Error fetching history:", error);
+            }
+        };
+
+        fetchHistory();
+
+        // 3. Fetch User's Payment Methods for Checkout
+        const fetchPaymentMethods = async () => {
+            // In a real app, this would come from the API user profile
+            if (user.paymentMethods) {
+                setSavedPaymentMethods(user.paymentMethods);
+            } else {
+                setSavedPaymentMethods([]);
+            }
+        };
+        fetchPaymentMethods();
+    }, [user]);
+
+    const saveActiveTicketLocal = (ticket: ActiveTicketDetails) => {
+        if (!user) return;
+        const userId = user.id || (user as any)._id;
+        localStorage.setItem(`active_ticket_${userId}`, JSON.stringify(ticket));
+    };
+
+    const clearActiveTicketLocal = () => {
+        if (!user) return;
+        const userId = user.id || (user as any)._id;
+        localStorage.removeItem(`active_ticket_${userId}`);
+        setActiveTicketDetails(null);
+        setGeneratedTicket(null);
+    };
+
+    // --- HANDLERS ---
+
+    const handleBookStand = (stand: Stand) => {
+        if (stand.availableSpots <= 0) {
+            alert("Sorry, this stand is currently full.");
+            return;
+        }
+        setSelectedStand(stand);
+        setShowTicketModal(true);
+    };
+
+    const handleStartBooking = () => {
+        if (generatedTicket) {
+            setShowTicketView(true);
+        } else {
+            // Enforce flow: Show stands first
+            setShowStands(true);
+            // Scroll to the stands section for better UX
+            setTimeout(() => {
+                const section = document.getElementById('stands-section');
+                if (section) {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+        }
+    };
+
+    const handleGenerateTicket = async () => {
+        if (!vehicleNumber.trim() || !user || !selectedStand) return;
+
+        setIsGenerating(true);
+
+        const bookingData = {
+            userId: user.id,
+            userName: user.name,
+            standId: selectedStand.id,
+            standName: selectedStand.name,
+            standOwnerId: selectedStand.ownerId, // CRITICAL: Pass the Admin ID so they see this booking
+            vehicleType: selectedBikeType === 'standard' ? 'two-wheeler' : (selectedBikeType === 'car' ? 'car' : 'two-wheeler'),
+            vehicleNumber: vehicleNumber,
+            vehicleModel: vehicleModel,
+            startTime: Timestamp.now(),
+            status: 'active',
+            totalAmount: 0
+        };
+
+        try {
+            let newTicketId: string;
+
+            const response = await fetch('http://localhost:3002/api/bookings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: user.id || (user as any)._id,
+                    userName: user.name,
+                    stand: selectedStand.id, // Backend expects 'stand' (ObjectId)
+                    standName: selectedStand.name,
+                    standOwnerId: selectedStand.ownerId,
+                    vehicleType: selectedBikeType === 'standard' ? 'two-wheeler' : (selectedBikeType === 'car' ? 'car' : 'two-wheeler'),
+                    vehicleNumber: vehicleNumber,
+                    vehicleModel: vehicleModel,
+                    status: 'active',
+                    totalAmount: 0
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                newTicketId = data.data.ticketId; // Display ID
+                const mongoId = data.data._id;    // API ID
+
+                const newTicketLocal: ActiveTicketDetails = {
+                    id: mongoId,
+                    ticketId: newTicketId,
+                    userName: user.name,
+                    bookedDate: new Date().toISOString(),
+                    standName: selectedStand.name,
+                    vehicleType: selectedBikeType,
+                    vehicleNumber: vehicleNumber,
+                    vehicleModel: vehicleModel,
+                    standId: selectedStand.id,
+                    status: 'active'
+                };
+
+                // Save State & Persistence
+                setGeneratedTicket(newTicketId);
+                setActiveTicketDetails(newTicketLocal);
+                saveActiveTicketLocal(newTicketLocal);
+
+                setIsGenerating(false);
+                setShowTicketModal(false);
+                setShowSuccessModal(true);
+
+            } else {
+                throw new Error(data.error || "Failed to create booking");
+            }
+        } catch (error) {
+            console.error("Critical error creating booking:", error);
+            setIsGenerating(false);
+            alert("An unexpected error occurred. Please try again.");
+        }
+    };
+
+    const handleShowTicketFromSuccess = () => {
+        setShowSuccessModal(false);
+        setShowTicketView(true);
+    };
+
+    const handleCloseTicketView = async () => {
+        setShowTicketView(false);
+
+        // If we were viewing a history item, restore the active ticket (if any)
+        if (activeTicketDetails && (activeTicketDetails.status === 'completed' || activeTicketDetails.status === 'cancelled')) {
+            // Check local storage to see if we have a *real* active ticket to show instead
+            if (user) {
+                const userId = user.id || (user as any)._id;
+                const storedTicketJson = localStorage.getItem(`active_ticket_${userId}`);
+                if (storedTicketJson) {
+                    try {
+                        const ticket = JSON.parse(storedTicketJson);
+
+                        // Migration for old tickets: if id is missing, use ticketId as id
+                        if (!ticket.id && ticket.ticketId) {
+                            ticket.id = ticket.ticketId;
+                        }
+
+                        // Fetch fresh data from API to ensure we have the latest ticketId
+                        if (ticket.id && !ticket.id.startsWith('OFFLINE')) {
+                            try {
+                                const response = await fetch(`http://localhost:3002/api/bookings/${ticket.id}`);
+                                const data = await response.json();
+                                if (data.success && data.data) {
+                                    // Update local state with fresh data
+                                    const freshTicket = {
+                                        ...ticket,
+                                        ticketId: data.data.ticketId || ticket.ticketId, // Use fresh ticketId
+                                        status: data.data.status || ticket.status
+                                    };
+                                    setActiveTicketDetails(freshTicket);
+                                    setGeneratedTicket(freshTicket.ticketId);
+                                    // Update local storage
+                                    localStorage.setItem(`active_ticket_${userId}`, JSON.stringify(freshTicket));
+                                } else {
+                                    // Fallback to stored data if API fails (e.g. network issue)
+                                    setActiveTicketDetails(ticket);
+                                    setGeneratedTicket(ticket.ticketId);
+                                }
+                            } catch (err) {
+                                console.error("Error fetching fresh ticket details:", err);
+                                setActiveTicketDetails(ticket);
+                                setGeneratedTicket(ticket.ticketId);
+                            }
+                        } else {
+                            setActiveTicketDetails(ticket);
+                            setGeneratedTicket(ticket.ticketId);
+                        }
+
+                    } catch (e) {
+                        console.error("Failed to parse stored ticket", e);
+                        setActiveTicketDetails(null); // Clear if parsing fails
+                        setGeneratedTicket(null);
+                    }
+                } else {
+                    setActiveTicketDetails(null);
+                }
+            }
+        }
+    };
+
+    const handleCancelTicket = async () => {
+        if (window.confirm("Are you sure you want to cancel this ticket?")) {
+            if (activeTicketDetails) {
+                try {
+                    // Update API if it's a real ticket
+                    if (!activeTicketDetails.id.startsWith('OFFLINE')) {
+                        await fetch(`http://localhost:3002/api/bookings/${activeTicketDetails.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                status: 'cancelled',
+                                endTime: new Date()
+                            }),
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error cancelling booking:", error);
+                }
+            }
+        }
+
+        clearActiveTicketLocal();
+        setVehicleNumber('');
+        setVehicleModel('');
+        setSelectedStand(null);
+        setShowTicketView(false);
+        setShowTicketModal(false);
+    };
+
+    // View Ticket from History
+    const handleViewHistoryTicket = (item: HistoryItem) => {
+        const historyTicket: ActiveTicketDetails = {
+            id: item.raw.id,
+            ticketId: item.raw.ticketId || item.raw.id, // Fallback for old bookings
+            userName: item.raw.userName || user?.name || 'User',
+            bookedDate: item.raw.startTime?.toDate ? item.raw.startTime.toDate().toISOString() : new Date(item.raw.startTime).toISOString(),
+            standName: item.raw.standName || 'Unknown',
+            vehicleType: item.raw.vehicleType || 'two-wheeler',
+            vehicleNumber: item.raw.vehicleNumber || 'N/A',
+            vehicleModel: item.raw.vehicleModel || '',
+            standId: item.raw.standId || '',
+            status: item.raw.status,
+            amount: item.raw.totalAmount ? item.raw.totalAmount.toFixed(2) : '0.00'
+        };
+
+        setActiveTicketDetails(historyTicket);
+        setShowTicketView(true);
+    };
+
+    const handleScanQR = () => {
+        if (!generatedTicket) {
+            alert("You don't have an active ticket to check out.");
+            return;
+        }
+        setShowScanModal(true);
+        setScanStep('camera');
+        setScanResult(null);
+
+        // Simulate scanning delay and fee calculation
+        setTimeout(() => {
+            const bookedTime = activeTicketDetails ? new Date(activeTicketDetails.bookedDate).getTime() : Date.now();
+            const now = Date.now();
+            // Calculate difference in hours
+            const diffHours = Math.max(0.5, (now - bookedTime) / (1000 * 60 * 60));
+
+            // Use config for fee or fallback
+            let calculatedFee = 0;
+            if (config?.calculateParkingFee && activeTicketDetails) {
+                const type = activeTicketDetails.vehicleType === 'car' ? 'car' : 'two-wheeler';
+                calculatedFee = config.calculateParkingFee(type, diffHours);
+            } else {
+                calculatedFee = diffHours * baseRate;
+            }
+
+            const hrs = Math.floor(diffHours);
+            const mins = Math.round((diffHours - hrs) * 60);
+
+            setScanResult({
+                duration: `${hrs}h ${mins}m`,
+                cost: calculatedFee.toFixed(2),
+                amount: calculatedFee,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            setScanStep('result');
+        }, 2500);
+    };
+
+    const handleProceedToPayment = () => {
+        setScanStep('payment');
+
+        // Select default card if available, else wallet
+        const defaultMethod = savedPaymentMethods.find(m => m.isDefault);
+        if (defaultMethod) {
+            setSelectedPaymentMethod(defaultMethod.id);
+        } else {
+            setSelectedPaymentMethod('wallet-default');
+        }
+    };
+
+    const handleConfirmPayment = async () => {
+        setScanStep('processing');
+
+        try {
+            // Identify used method name for history
+            let methodName = 'SecureCycle Wallet';
+            const selected = savedPaymentMethods.find(m => m.id === selectedPaymentMethod);
+            if (selected) {
+                if (selected.method === 'card') methodName = `${selected.type} •••• ${selected.last4}`;
+                if (selected.method === 'upi') methodName = `UPI (${selected.upiId})`;
+            }
+
+            if (activeTicketDetails && scanResult) {
+                // Update API Booking to 'Completed' (only if real ticket)
+                if (!activeTicketDetails.id.startsWith('OFFLINE')) {
+                    await fetch(`http://localhost:3002/api/bookings/${activeTicketDetails.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            status: 'completed',
+                            endTime: new Date(),
+                            totalAmount: scanResult.amount,
+                            paymentMethod: methodName
+                        }),
+                    });
+                }
+            }
+
+            // Clear local active ticket
+            clearActiveTicketLocal();
+
+            setTimeout(() => {
+                setScanStep('success');
+            }, 1500);
+
+        } catch (error) {
+            console.error("Payment update failed:", error);
+            alert("Payment recorded locally but failed to sync. Please contact support.");
+            setScanStep('success'); // Allow exit for demo purposes
+            clearActiveTicketLocal();
+        }
+    };
+
+    const closeScanModal = () => {
+        setShowScanModal(false);
+        setScanResult(null);
+        setScanStep('camera');
+    };
+
+    return (
+        <div className="space-y-8 relative">
+
+            {/* 1. Booking Success Screen */}
+            {showSuccessModal && (
+                <BookingSuccess
+                    onShowTicket={handleShowTicketFromSuccess}
+                    onClose={() => setShowSuccessModal(false)}
+                />
+            )}
+
+            {/* 2. Detailed Ticket View (With Download) */}
+            {showTicketView && activeTicketDetails && (
+                <TicketView
+                    ticket={activeTicketDetails}
+                    onClose={handleCloseTicketView}
+                />
+            )}
+
+            {/* 3. History Modal - NEW */}
+            {showHistory && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-900 text-lg flex items-center">
+                                <History className="h-5 w-5 mr-2 text-indigo-600" />
+                                Parking History
+                            </h3>
+                            <button onClick={() => setShowHistory(false)} className="text-gray-400 hover:text-gray-600 transition-colors bg-white p-1 rounded-full border border-gray-200 shadow-sm">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-0">
+                            <table className="w-full text-left text-sm text-gray-600">
+                                <thead className="bg-gray-50 text-gray-900 font-semibold sticky top-0 z-10 border-b border-gray-200">
+                                    <tr>
+                                        <th className="px-6 py-4">Date</th>
+                                        <th className="px-6 py-4">Location</th>
+                                        <th className="px-6 py-4">Status</th>
+                                        <th className="px-6 py-4">Total Cost</th>
+                                        <th className="px-6 py-4">Payment Method</th>
+                                        <th className="px-6 py-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {historyItems.length > 0 ? historyItems.map((item, i) => (
+                                        <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="font-medium text-gray-900">{item.date}</div>
+                                                <div className="text-xs text-gray-400">{new Date(item.raw.startTime?.toDate ? item.raw.startTime.toDate() : item.raw.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-gray-900">{item.location}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${item.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {item.status === 'Paid' ? <CheckCircle className="w-3 h-3 mr-1" /> : <X className="w-3 h-3 mr-1" />}
+                                                    {item.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 font-bold text-gray-900">{item.cost}</td>
+                                            <td className="px-6 py-4 text-xs text-gray-500">{item.paymentMethod || '-'}</td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button
+                                                    onClick={() => handleViewHistoryTicket(item)}
+                                                    className="text-indigo-600 hover:text-indigo-900 text-xs font-medium border border-indigo-200 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                                                >
+                                                    Receipt
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                                                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                    <History className="h-8 w-8 text-gray-300" />
+                                                </div>
+                                                <p>No parking history found.</p>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Scanner & Payment Modal */}
+            {showScanModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden relative">
+                        <button onClick={closeScanModal} className="absolute top-4 right-4 z-10 p-2 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors">
+                            <X className="h-5 w-5" />
+                        </button>
+
+                        {/* Back button for Payment Step */}
+                        {scanStep === 'payment' && (
+                            <button onClick={() => setScanStep('result')} className="absolute top-4 left-4 z-10 p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                                <ArrowLeft className="h-5 w-5" />
+                            </button>
+                        )}
+
+                        {scanStep === 'camera' && (
+                            <div className="bg-black relative h-[500px] flex flex-col items-center justify-center">
+                                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+
+                                <div className="relative w-64 h-64 border-4 border-white/30 rounded-3xl overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-[scan_2s_ease-in-out_infinite]"></div>
+                                    <div className="absolute inset-0 border-2 border-white/80 rounded-3xl"></div>
+
+                                    {/* Corner markers */}
+                                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-xl"></div>
+                                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500 rounded-tr-xl"></div>
+                                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-xl"></div>
+                                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-xl"></div>
+                                </div>
+
+                                <div className="mt-8 text-center space-y-2 relative z-10">
+                                    <Camera className="h-8 w-8 text-white mx-auto animate-pulse" />
+                                    <p className="text-white font-medium">Scanning Exit Code...</p>
+                                    <p className="text-white/60 text-xs">Simulating checkout for ticket #{activeTicketDetails?.ticketId.slice(-6)}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {scanStep === 'result' && (
+                            <div className="p-6 animate-in slide-in-from-bottom-10 duration-300">
+                                <div className="text-center mb-6">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <CheckCircle className="h-8 w-8 text-green-600" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900">Session Calculated</h3>
+                                    <p className="text-gray-500 text-sm">{activeTicketDetails?.standName}</p>
+                                </div>
+
+                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 space-y-4 mb-6">
+                                    <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+                                        <div className="flex items-center text-gray-600">
+                                            <Clock className="h-4 w-4 mr-2" />
+                                            <span>Duration</span>
+                                        </div>
+                                        <span className="font-bold text-gray-900">{scanResult?.duration}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+                                        <div className="flex items-center text-gray-600">
+                                            <Zap className="h-4 w-4 mr-2" />
+                                            <span>Rate Applied</span>
+                                        </div>
+                                        <span className="font-medium text-gray-900">
+                                            {activeTicketDetails?.vehicleType === 'car' ? 'Car Rate' : 'Bike Rate'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2">
+                                        <div className="flex items-center text-gray-800 font-bold">
+                                            <span>Total Amount</span>
+                                        </div>
+                                        <span className="text-2xl font-bold text-indigo-600">₹{scanResult?.cost}</span>
+                                    </div>
+                                </div>
+
+                                <Button className="w-full py-3 text-lg" onClick={handleProceedToPayment}>
+                                    Proceed to Pay ₹{scanResult?.cost}
+                                </Button>
+                                <p className="text-center text-xs text-gray-400 mt-4">Calculated at {scanResult?.time}</p>
+                            </div>
+                        )}
+
+                        {scanStep === 'payment' && (
+                            <div className="p-6 animate-in slide-in-from-right-10 duration-300">
+                                <div className="text-center mb-6">
+                                    <h3 className="text-xl font-bold text-gray-900">Select Payment Method</h3>
+                                    <p className="text-gray-500 text-sm">Amount to pay: <span className="text-indigo-600 font-bold">₹{scanResult?.cost}</span></p>
+                                </div>
+
+                                <div className="space-y-3 mb-8 max-h-64 overflow-y-auto">
+                                    {/* Wallet Option (Always Available) */}
+                                    <button
+                                        key="wallet-default"
+                                        onClick={() => setSelectedPaymentMethod('wallet-default')}
+                                        className={`w-full flex items-center p-4 rounded-xl border-2 transition-all ${selectedPaymentMethod === 'wallet-default' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-gray-100 hover:border-gray-200'}`}
+                                    >
+                                        <div className="mr-4 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                                            <Wallet className="h-5 w-5 text-orange-600" />
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <p className="font-bold text-gray-900 text-sm">SecureCycle Wallet</p>
+                                            <p className="text-xs text-gray-500">Balance: ₹450</p>
+                                        </div>
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === 'wallet-default' ? 'border-indigo-600' : 'border-gray-300'}`}>
+                                            {selectedPaymentMethod === 'wallet-default' && <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full" />}
+                                        </div>
+                                    </button>
+
+                                    {/* Saved Methods */}
+                                    {savedPaymentMethods.map((method) => (
+                                        <button
+                                            key={method.id}
+                                            onClick={() => setSelectedPaymentMethod(method.id)}
+                                            className={`w-full flex items-center p-4 rounded-xl border-2 transition-all ${selectedPaymentMethod === method.id ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-gray-100 hover:border-gray-200'}`}
+                                        >
+                                            <div className="mr-4 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                                                {method.method === 'upi' ? (
+                                                    <SmartphoneNfc className="h-5 w-5 text-green-600" />
+                                                ) : (
+                                                    <CreditCard className="h-5 w-5 text-indigo-600" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 text-left">
+                                                <p className="font-bold text-gray-900 text-sm">
+                                                    {method.method === 'upi' ? `UPI (${method.upiId})` : `${method.type} •••• ${method.last4}`}
+                                                </p>
+                                                <p className="text-xs text-gray-500 capitalize">{method.holderName}</p>
+                                            </div>
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === method.id ? 'border-indigo-600' : 'border-gray-300'}`}>
+                                                {selectedPaymentMethod === method.id && <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full" />}
+                                            </div>
+                                        </button>
+                                    ))}
+
+                                    {savedPaymentMethods.length === 0 && (
+                                        <div onClick={() => onNavigate('settings')} className="text-center py-4 text-xs text-gray-400 cursor-pointer hover:text-indigo-600 transition-colors border-2 border-dashed border-gray-100 rounded-xl">
+                                            + Add new card in Settings
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Button className="w-full py-3 text-lg" onClick={handleConfirmPayment}>
+                                    Pay ₹{scanResult?.cost} Securely
+                                </Button>
+                                <div className="flex items-center justify-center mt-4 text-xs text-gray-400">
+                                    <Lock className="w-3 h-3 mr-1" /> Encrypted Payment
+                                </div>
+                            </div>
+                        )}
+
+                        {scanStep === 'processing' && (
+                            <div className="p-6 h-[400px] flex flex-col items-center justify-center animate-in fade-in duration-500">
+                                <div className="relative">
+                                    <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <IndianRupee className="h-6 w-6 text-indigo-600" />
+                                    </div>
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 mt-6">Processing Payment...</h3>
+                                <p className="text-gray-500 text-sm mt-2">Updating SecureCycle Database...</p>
+                            </div>
+                        )}
+
+                        {scanStep === 'success' && (
+                            <div className="p-6 h-[500px] flex flex-col items-center justify-center animate-in zoom-in-95 duration-500 bg-gradient-to-br from-green-50 to-white">
+                                <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-200 animate-[bounce_1s_ease-out]">
+                                    <CheckCircle className="h-12 w-12 text-white" />
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-900">Payment Successful!</h3>
+                                <p className="text-gray-500 mt-2">Transaction Recorded</p>
+
+                                <div className="bg-white p-6 rounded-xl border border-gray-200 mt-8 w-full shadow-sm">
+                                    <div className="flex items-center justify-center space-x-2 text-indigo-600 font-bold mb-2">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span>Gate Opening...</span>
+                                    </div>
+                                    <p className="text-center text-xs text-gray-400">Please exit the stand within 5 minutes.</p>
+                                </div>
+
+                                <Button className="w-full mt-auto" onClick={closeScanModal}>
+                                    Done
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Ticket Generation Input Modal */}
+            {showTicketModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-900 flex items-center">
+                                <Ticket className="h-5 w-5 mr-2 text-indigo-600" />
+                                {selectedStand ? 'Book Specific Stand' : 'New Ticket'}
+                            </h3>
+                            <button onClick={() => setShowTicketModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="space-y-6">
+                                <div className="text-center">
+                                    {selectedStand ? (
+                                        <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-4 animate-in zoom-in-95">
+                                            <p className="text-xs text-indigo-600 font-bold uppercase tracking-wider mb-1">Selected Location</p>
+                                            <p className="text-gray-900 font-bold text-lg">{selectedStand.name}</p>
+                                            <p className="text-xs text-gray-500 mt-1 flex items-center justify-center">
+                                                <MapPin className="h-3 w-3 mr-1" />
+                                                {selectedStand.address || 'Location Coordinates'}
+                                            </p>
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                                {/* Vehicle Type Selection */}
+                                <div className="grid grid-cols-3 gap-3">
+                                    <button
+                                        onClick={() => setSelectedBikeType('standard')}
+                                        className={`p-3 rounded-xl border-2 transition-all text-center ${selectedBikeType === 'standard' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                                    >
+                                        <div className="mx-auto w-8 h-8 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm">
+                                            <Bike className="h-4 w-4" />
+                                        </div>
+                                        <div className="font-semibold text-xs">Bike</div>
+                                        <div className="text-[10px] opacity-75 mt-1 font-bold">
+                                            ₹{selectedStand?.rates?.bike || 10}/hr
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setSelectedBikeType('electric')}
+                                        className={`p-3 rounded-xl border-2 transition-all text-center ${selectedBikeType === 'electric' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                                    >
+                                        <div className="mx-auto w-8 h-8 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm">
+                                            <Zap className="h-4 w-4 text-amber-500" />
+                                        </div>
+                                        <div className="font-semibold text-xs">E-Bike</div>
+                                        <div className="text-[10px] opacity-75 mt-1 font-bold">
+                                            ₹{(selectedStand?.rates?.bike || 10) + 5}/hr
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setSelectedBikeType('car')}
+                                        className={`p-3 rounded-xl border-2 transition-all text-center ${selectedBikeType === 'car' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                                    >
+                                        <div className="mx-auto w-8 h-8 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm">
+                                            <Car className="h-4 w-4 text-blue-500" />
+                                        </div>
+                                        <div className="font-semibold text-xs">Car</div>
+                                        <div className="text-[10px] opacity-75 mt-1 font-bold">
+                                            ₹{selectedStand?.rates?.car || 50}/hr
+                                        </div>
+                                    </button>
+                                </div>
+
+                                {/* Vehicle Details Inputs */}
+                                <div className="space-y-3">
+                                    <Input
+                                        label="Bike / Vehicle Number"
+                                        placeholder="e.g. AB-12-CD-3456"
+                                        value={vehicleNumber}
+                                        onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+                                    />
+                                    <Input
+                                        label="Model / Color (Optional)"
+                                        placeholder="e.g. Black Pulsar"
+                                        value={vehicleModel}
+                                        onChange={(e) => setVehicleModel(e.target.value)}
+                                    />
+                                </div>
+
+                                <Button
+                                    onClick={handleGenerateTicket}
+                                    isLoading={isGenerating}
+                                    disabled={!vehicleNumber.trim() || !selectedStand}
+                                    className="w-full py-3 text-lg"
+                                >
+                                    {isGenerating ? 'Booking...' : `Confirm Booking`}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Welcome Banner */}
+            <div className="bg-gradient-to-r from-indigo-800 to-indigo-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 opacity-10 transform translate-x-10 -translate-y-10">
+                    <QrCode size={200} />
+                </div>
+                <div className="relative z-10">
+                    <h1 className="text-3xl font-bold">Welcome back, {user?.name?.split(' ')[0]}!</h1>
+                    <p className="text-indigo-100 mt-2 max-w-lg text-lg">
+                        Ready to park? Find a spot or check your active sessions.
+                    </p>
+                </div>
+            </div>
+
+            {/* Quick Actions Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Get/Show Ticket Action */}
+                <button
+                    onClick={handleStartBooking}
+                    className={`p-6 rounded-xl shadow-sm border hover:shadow-md transition-all group text-left relative overflow-hidden ${generatedTicket ? 'bg-indigo-50 border-indigo-200 hover:border-indigo-300' : 'bg-white border-gray-100 hover:border-indigo-200'}`}
+                >
+                    {generatedTicket ? (
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-100/50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    ) : (
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    )}
+
+                    <div className="relative z-10">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-colors ${generatedTicket ? 'bg-indigo-200 text-indigo-800' : 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'}`}>
+                            {generatedTicket ? <QrCode className="h-6 w-6" /> : <Ticket className="h-6 w-6" />}
+                        </div>
+                        <h3 className={`text-lg font-bold transition-colors ${generatedTicket ? 'text-indigo-900' : 'text-gray-900 group-hover:text-indigo-600'}`}>
+                            {generatedTicket ? 'Show Entry Pass' : 'Book Parking'}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-2 mb-4">
+                            {generatedTicket ? 'View your active entry QR code.' : 'Select a stand to generate an entry ticket.'}
+                        </p>
+                        <span className="text-sm font-medium text-indigo-600 flex items-center">
+                            {generatedTicket ? (
+                                <>View QR <Eye className="h-4 w-4 ml-1" /></>
+                            ) : (
+                                <>Select Stand <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" /></>
+                            )}
+                        </span>
+                    </div>
+                </button>
+
+                {/* Scan QR Code (Check Out) */}
+                <button
+                    onClick={handleScanQR}
+                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group text-left relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    <div className="relative z-10">
+                        <div className="bg-purple-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-600 transition-colors">
+                            <Scan className="h-6 w-6 text-purple-600 group-hover:text-white transition-colors" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition-colors">Checkout / Pay</h3>
+                        <p className="text-sm text-gray-500 mt-2 mb-4">Leaving? Scan to calculate fee and exit.</p>
+                        <span className="text-sm font-medium text-purple-600 flex items-center">
+                            Scan & Pay <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </span>
+                    </div>
+                </button>
+
+                {/* Find Stands Action */}
+                <button
+                    onClick={() => setShowStands(!showStands)}
+                    className={`bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition-all group text-left relative overflow-hidden ${showStands ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-100 hover:border-emerald-200'}`}
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    <div className="relative z-10">
+                        <div className="bg-emerald-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:bg-emerald-600 transition-colors">
+                            <Map className="h-6 w-6 text-emerald-600 group-hover:text-white transition-colors" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">Find Stands</h3>
+                        <p className="text-sm text-gray-500 mt-2 mb-4">Locate available parking spots near you.</p>
+                        <span className="text-sm font-medium text-emerald-600 flex items-center">
+                            {showStands ? 'Hide Map' : 'Show Map'} <ChevronRight className={`h-4 w-4 ml-1 transition-transform ${showStands ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
+                        </span>
+                    </div>
+                </button>
+
+                {/* Statements / History Action */}
+                <button
+                    onClick={() => setShowHistory(true)}
+                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group text-left relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                    <div className="relative z-10">
+                        <div className="bg-blue-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors">
+                            <FileText className="h-6 w-6 text-blue-600 group-hover:text-white transition-colors" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Ticket History</h3>
+                        <p className="text-sm text-gray-500 mt-2 mb-4">View past trips, billing, and download receipts.</p>
+                        <span className="text-sm font-medium text-blue-600 flex items-center">
+                            View History <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                        </span>
+                    </div>
+                </button>
+            </div>
+
+            {/* Real Stands View (Fetched from Firestore) */}
+            {showStands && (
+                <div id="stands-section" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 flex flex-col md:flex-row h-96">
+                    {/* List View */}
+                    <div className="w-full md:w-1/3 border-r border-gray-100 overflow-y-auto">
+                        <div className="px-5 py-4 border-b border-gray-100 bg-emerald-50/30 sticky top-0 backdrop-blur-sm">
+                            <h3 className="font-bold text-gray-800 flex items-center text-sm uppercase tracking-wide">
+                                <MapPin className="h-4 w-4 mr-2 text-emerald-600" />
+                                Available Locations (Real-Time)
+                            </h3>
+                        </div>
+
+                        {loadingStands ? (
+                            <div className="p-8 text-center text-gray-500">
+                                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                Loading stands...
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-gray-100">
+                                {stands.length > 0 ? stands.map((stand) => (
+                                    <div
+                                        key={stand.id}
+                                        onClick={() => handleBookStand(stand)}
+                                        className="p-4 hover:bg-emerald-50/30 cursor-pointer transition-colors group relative"
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-semibold text-gray-900 text-sm">{stand.name}</p>
+                                                <div className="flex items-center text-xs text-gray-500 mt-1">
+                                                    <Navigation className="h-3 w-3 mr-1" />
+                                                    <span className="truncate max-w-[150px]">{stand.address || 'View on map'}</span>
+                                                </div>
+                                            </div>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stand.availableSpots > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                {stand.availableSpots} Spots
+                                            </span>
+                                        </div>
+
+                                        <div className="absolute inset-0 bg-indigo-50/80 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                            <span className="font-bold text-indigo-700 flex items-center text-sm">
+                                                <Ticket className="w-4 h-4 mr-1" /> Book This Stand
+                                            </span>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <div className="p-6 text-center text-gray-500 text-sm">
+                                        No active stands found. <br /> Ask an admin to add one.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Static Map View for Demo (Coordinates from real stands) */}
+                    <div className="w-full md:w-2/3 bg-gray-100 relative overflow-hidden group flex items-center justify-center">
+                        {/* Map Grid Pattern */}
+                        <div className="absolute inset-0 opacity-10"
+                            style={{ backgroundImage: 'radial-gradient(#6b7280 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                        </div>
+
+                        {stands.length > 0 ? (
+                            <div className="text-center">
+                                <Map className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                <p className="text-gray-500 text-sm">Map visualization of {stands.length} stands</p>
+                                <p className="text-xs text-gray-400">(Select a stand from the list to book)</p>
+                            </div>
+                        ) : (
+                            <p className="text-gray-400 text-sm">No map data available</p>
+                        )}
+
+                        <div className="absolute bottom-4 right-4 bg-white px-3 py-1 rounded shadow text-xs font-semibold text-gray-500">
+                            Live Data
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Active Ticket Card - Only visible if ticket generated */}
+                {generatedTicket && (
+                    <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-left-4 duration-500">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-green-50/50">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                                <QrCode className="h-5 w-5 mr-2 text-indigo-600" />
+                                Active Ticket
+                            </h3>
+                            <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold uppercase rounded-full animate-pulse">Ready to Scan</span>
+                        </div>
+
+                        <div className="p-6 flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
+                            <div className="bg-white p-2 border-2 border-gray-900 rounded-lg shadow-sm">
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${generatedTicket}`} alt="Ticket QR" className="w-32 h-32" />
+                                <p className="text-xs text-center mt-2 font-mono text-gray-500">#{generatedTicket.slice(-6)}</p>
+                            </div>
+
+                            <div className="flex-1 space-y-5 w-full">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="col-span-2">
+                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Location</p>
+                                        <div className="flex items-center mt-1 text-gray-900 font-medium">
+                                            <MapPin className="h-4 w-4 mr-1 text-gray-400" />
+                                            {activeTicketDetails?.standName}
+                                        </div>
+                                    </div>
+
+                                    <div className="col-span-2">
+                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Vehicle</p>
+                                        <div className="flex items-center mt-1 text-gray-900 font-medium">
+                                            {activeTicketDetails?.vehicleType === 'car' ? (
+                                                <Car className="h-4 w-4 mr-1 text-gray-400" />
+                                            ) : (
+                                                <Bike className="h-4 w-4 mr-1 text-gray-400" />
+                                            )}
+                                            {activeTicketDetails?.vehicleNumber}
+                                            {activeTicketDetails?.vehicleModel && <span className="text-gray-400 font-normal ml-2">({activeTicketDetails.vehicleModel})</span>}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Generated At</p>
+                                        <div className="flex items-center mt-1 text-gray-900">
+                                            <Clock className="h-4 w-4 mr-1 text-gray-400" />
+                                            {new Date(activeTicketDetails?.bookedDate || Date.now()).toLocaleTimeString()}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Rate</p>
+                                        <p className="text-gray-900 mt-1 font-medium">
+                                            {activeTicketDetails?.vehicleType === 'car' ? 'Standard Car Rates' : `Standard Bike Rates`}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 flex space-x-3">
+                                    <Button variant="outline" className="flex-1 text-red-600 hover:bg-red-50 border-gray-200" onClick={handleCancelTicket}>
+                                        Cancel Ticket
+                                    </Button>
+                                    <Button className="flex-1" onClick={() => setShowTicketView(true)}>
+                                        View Details
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Profile / Quick Info - Span full width if no ticket */}
+                <div className={`space-y-6 ${!generatedTicket ? 'lg:col-span-3' : ''}`}>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="flex items-center space-x-4 mb-6">
+                            <img src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.name}`} alt="Profile" className="w-16 h-16 rounded-full border-4 border-indigo-50 shadow-sm" />
+                            <div>
+                                <h3 className="font-bold text-gray-900">{user?.name}</h3>
+                                <p className="text-sm text-gray-500 capitalize">{user?.role} Account</p>
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <Button
+                                variant="outline"
+                                className="w-full justify-start text-sm"
+                                onClick={() => onNavigate('settings')}
+                            >
+                                Edit Profile & Settings
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

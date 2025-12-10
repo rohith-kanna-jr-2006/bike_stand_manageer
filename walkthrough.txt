@@ -1,0 +1,95 @@
+Project Execution & Database Guide
+This guide explains how to run the frontend, backend, and database, and how to view your data in MongoDB.
+
+1. Prerequisites
+Ensure you have the following installed:
+
+Node.js: Download
+MongoDB Community Server: Download
+MongoDB Compass (Optional, for viewing data GUI): Download
+2. Running the Database (MongoDB)
+If you installed MongoDB as a service (common on Windows), it should be running automatically. To verify or start it manually (especially if you get a "Data directory not found" error):
+
+Open a terminal (PowerShell/CMD).
+Create a data directory in your project (if you haven't already):
+mkdir data\db
+Run MongoDB pointing to this directory:
+mongod --dbpath ./data/db
+If mongod is not recognized, use the full path you provided:
+& "D:\Program Files\MongoDB\server\8.2\bin\mongod.exe" --dbpath ./data/db
+3. Running the Backend
+The backend connects to MongoDB and handles API requests.
+
+Open a new terminal.
+Navigate to the project root:
+cd d:\cycle-bike-stand-management
+Install dependencies (if not done):
+npm install
+Start the server:
+node server.js
+You should see: "MongoDB Connected" and "Backend server running on http://localhost:3001"
+4. Running the Frontend
+The frontend is the user interface built with React/Vite.
+
+Open a second terminal.
+Navigate to the project root:
+cd d:\cycle-bike-stand-management
+Start the development server:
+npm run dev
+Open the URL shown (usually http://localhost:5173) in your browser.
+5. Storing & Viewing Data in MongoDB
+How Data is Stored
+Your application uses Mongoose (in 
+server.js
+ and models/) to interact with MongoDB.
+
+When a user logs in or a ticket is created, the backend sends this data to the MongoDB database specified in your 
+.env
+ file (MONGO_URI).
+Separate Database: The data is stored in a database named secure_cycle_db (defined in your connection string).
+How to View Data (Using MongoDB Compass) - RECOMMENDED
+Open MongoDB Compass (Search for it in your Windows Start Menu).
+Connect to your local instance (usually mongodb://localhost:27017 - just click Connect).
+In the left sidebar, look for the database secure_cycle_db.
+Click on it to see your collections (tables):
+users: Stores user profiles.
+tickets: Stores booking tickets.
+stands: Stores bike stand locations.
+bookings: Stores booking records.
+Click a collection to view the actual documents (data).
+How to View Data (Alternative: Node Script)
+If you cannot use MongoDB Compass or the Shell, we have provided a script to check your data stats.
+
+Ensure your backend/database is running.
+Run:
+node scripts/check-db.js
+How to View Data (Using Terminal)
+Note: This requires mongosh to be installed and in your PATH.
+
+Open a terminal.
+Type mongosh.
+Switch to your database:
+use secure_cycle_db
+View collections:
+show collections
+Find data (e.g., all users):
+db.users.find()
+6. API Endpoints
+The backend now supports the following endpoints:
+
+Tickets
+GET /api/tickets/:id - Get ticket details
+POST /api/tickets - Create a new ticket
+Stands
+GET /api/stands - Get all stands (supports ?ownerId=... filter)
+GET /api/stands/:id - Get stand details
+POST /api/stands - Create a new stand (Admin)
+PUT /api/stands/:id - Update a stand (Admin)
+DELETE /api/stands/:id - Delete a stand (Admin)
+Bookings
+POST /api/bookings - Create a new booking
+GET /api/bookings/user/:userId - Get bookings for a specific user
+GET /api/bookings/stand/:standId - Get bookings for a specific stand (Admin)
+PUT /api/bookings/:id - Update a booking (e.g. cancel, complete)
+Authentication
+POST /api/auth/google - Authenticate with Google (expects token in body)

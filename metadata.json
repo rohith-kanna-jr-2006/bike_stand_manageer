@@ -1,0 +1,5 @@
+{
+  "name": "Cycle - Bike Stand Management",
+  "description": "A secure, role-based bike stand management system featuring multi-method authentication (Email, Phone, Google), admin analytics, and user ticket management.",
+  "requestFramePermissions": []
+}
