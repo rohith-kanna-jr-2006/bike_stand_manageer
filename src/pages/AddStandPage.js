@@ -1,16 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { GoogleMap, Marker } from '@react-google-maps/api';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../utils/firebaseConfig';
 import { ArrowLeft, MapPin, Loader2 } from 'lucide-react';
-
-declare var google: any;
-
-// Define the view prop type to match App.tsx's expectation if we were to pass it, 
-// but here we just need a way to go back.
-interface AddStandPageProps {
-    onBack: () => void;
-}
+import { useAuth } from '../contexts/AuthContext';
 
 const containerStyle = {
     width: '100%',
@@ -22,20 +13,21 @@ const defaultCenter = {
     lng: 77.2090
 };
 
-export const AddStandPage: React.FC<AddStandPageProps> = ({ onBack }) => {
+export const AddStandPage = ({ onBack }) => {
+    const { user } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
         capacity: '',
         address: '',
         phone: ''
     });
-    const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+    const [position, setPosition] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+    const [message, setMessage] = useState(null);
 
-    const mapRef = useRef<google.maps.Map | null>(null);
+    const mapRef = useRef(null);
 
-    const onLoad = useCallback((map: google.maps.Map) => {
+    const onLoad = useCallback((map) => {
         mapRef.current = map;
     }, []);
 
@@ -43,7 +35,7 @@ export const AddStandPage: React.FC<AddStandPageProps> = ({ onBack }) => {
         mapRef.current = null;
     }, []);
 
-    const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
+    const onMapClick = useCallback((e) => {
         if (e.latLng) {
             setPosition({
                 lat: e.latLng.lat(),
@@ -52,11 +44,11 @@ export const AddStandPage: React.FC<AddStandPageProps> = ({ onBack }) => {
         }
     }, []);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!position) {
             setMessage({ type: 'error', text: 'Please click on the map to select a location.' });
@@ -70,27 +62,43 @@ export const AddStandPage: React.FC<AddStandPageProps> = ({ onBack }) => {
             const payload = {
                 name: formData.name,
                 capacity: Number(formData.capacity),
-                availableSpots: Number(formData.capacity), // Initial availability
-                location: position,
+                // Backend usually handles availableSpots matching capacity on creation
+                location: {
+                    type: 'Point',
+                    coordinates: [position.lng, position.lat]
+                },
                 address: formData.address,
+                // Contact info formatting depends on backend model, 
+                // assuming flat or nested 'contact' object based on previous firebase model
                 contact: {
                     phone: formData.phone
                 },
                 status: 'active',
-                createdAt: Timestamp.now()
+                ownerId: user?.id || user?._id // Assign owner if logged in
             };
 
-            await addDoc(collection(db, 'stands'), payload);
+            const response = await fetch('http://localhost:3002/api/stands', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
 
-            setMessage({ type: 'success', text: 'Bike Stand registered successfully!' });
-            setFormData({ name: '', capacity: '', address: '', phone: '' });
-            setPosition(null);
+            const data = await response.json();
 
-            // Optional: Navigate back after success
-            // setTimeout(onBack, 2000);
+            if (data.success) {
+                setMessage({ type: 'success', text: 'Bike Stand registered successfully!' });
+                setFormData({ name: '', capacity: '', address: '', phone: '' });
+                setPosition(null);
+                // Optional: Navigate back after success
+                // setTimeout(onBack, 2000);
+            } else {
+                throw new Error(data.message || 'Failed to register stand');
+            }
         } catch (err) {
             console.error(err);
-            setMessage({ type: 'error', text: 'Failed to register stand. Try again.' });
+            setMessage({ type: 'error', text: err.message || 'Failed to register stand. Try again.' });
         } finally {
             setLoading(false);
         }

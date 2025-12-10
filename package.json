@@ -2,7 +2,7 @@
   "name": "secure-cycle",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:5000",
+  "proxy": "http://localhost:3002",
   "scripts": {
     "start": "node server.js",
     "client": "react-scripts start",
@@ -33,8 +33,8 @@
     "react-dom": "^18.2.0",
     "react-is": "^19.2.0",
     "react-qr-reader": "^3.0.0-beta-1",
+    "react-scripts": "^5.0.1",
     "recharts": "^3.4.1",
-    "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
   "devDependencies": {
