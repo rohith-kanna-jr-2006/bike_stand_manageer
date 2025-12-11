@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ConfigContext } from '../contexts/ConfigContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Save, User as UserIcon, Settings, IndianRupee, Clock, ShieldCheck, AlertCircle, CreditCard, Trash2, Plus, CheckCircle, X, Smartphone, MapPin, Camera, SmartphoneNfc, Lock, QrCode, Shield, RefreshCw, Bike, Car } from 'lucide-react';
+import { Save, User as UserIcon, Settings, IndianRupee, Clock, ShieldCheck, AlertCircle, CreditCard, Trash2, Plus, CheckCircle, X, Smartphone, MapPin, Camera, SmartphoneNfc, Lock, QrCode, Shield, RefreshCw, Bike, Car, Zap } from 'lucide-react';
 import { validatePhone } from '../utils/validation';
 import { authService } from '../utils/authService';
 import { totpService } from '../utils/totpService';
@@ -53,9 +53,11 @@ export const SettingsPage = () => {
     const [name, setName] = useState(user?.name || '');
     const [phone, setPhone] = useState(user?.phoneNumber || '');
     const [address, setAddress] = useState(user?.address || '');
-    const [vehicleNumber, setVehicleNumber] = useState(user?.vehicleNumber || '');
-    const [vehicleType, setVehicleType] = useState(user?.vehicleType || 'two-wheeler');
-    const [vehicleModel, setVehicleModel] = useState(user?.vehicleModel || '');
+    const [savedVehicles, setSavedVehicles] = useState({
+        bike: [],
+        car: [],
+        ebike: []
+    });
 
     // Avatar State (Preview)
     const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
@@ -82,12 +84,20 @@ export const SettingsPage = () => {
             setName(user.name || '');
             setPhone(user.phoneNumber || '');
             setAddress(user.address || '');
-            setVehicleNumber(user.vehicleNumber || '');
-            setVehicleType(user.vehicleType || 'two-wheeler');
-            setVehicleModel(user.vehicleModel || '');
             setAvatarPreview(user.avatar || '');
             if (user.paymentMethods) {
                 setCards(user.paymentMethods);
+            }
+            if (user.savedVehicles) {
+                setSavedVehicles(user.savedVehicles);
+            } else if (user.vehicleNumber) {
+                // Backward compatibility: Populate from old fields
+                const type = user.vehicleType === 'car' ? 'car' : 'bike';
+                setSavedVehicles({
+                    bike: type === 'bike' ? [{ number: user.vehicleNumber, model: user.vehicleModel || '' }] : [],
+                    car: type === 'car' ? [{ number: user.vehicleNumber, model: user.vehicleModel || '' }] : [],
+                    ebike: []
+                });
             }
         }
     }, [user]);
@@ -126,6 +136,18 @@ export const SettingsPage = () => {
         if (phone && !validatePhone(phone)) {
             newErrors.phone = "Invalid phone format (e.g., +1234567890)";
         }
+
+        // Validate Vehicles
+        let hasVehicleError = false;
+        ['bike', 'car', 'ebike'].forEach(type => {
+            savedVehicles[type].forEach((v, i) => {
+                if (!v.number.trim()) {
+                    alert(`Please enter a vehicle number for ${type} #${i + 1}`);
+                    hasVehicleError = true;
+                }
+            });
+        });
+        if (hasVehicleError) return;
 
         if (user?.role === UserRole.ADMIN) {
             const rate = parseFloat(baseRate);
@@ -184,7 +206,8 @@ export const SettingsPage = () => {
                     avatar: avatarPreview,
                     phoneNumber: phone,
                     address: address,
-                    paymentMethods: cards // Save payment methods too
+                    paymentMethods: cards,
+                    savedVehicles
                 });
 
                 // Call backend API to update user profile
@@ -200,9 +223,7 @@ export const SettingsPage = () => {
                         address,
                         avatar: avatarPreview,
                         paymentMethods: cards,
-                        vehicleNumber,
-                        vehicleType,
-                        vehicleModel
+                        savedVehicles
                     }),
                 });
 
@@ -212,9 +233,7 @@ export const SettingsPage = () => {
                     phoneNumber: phone,
                     address: address,
                     paymentMethods: cards,
-                    vehicleNumber,
-                    vehicleType,
-                    vehicleModel
+                    savedVehicles
                 });
             }
 
@@ -335,6 +354,30 @@ export const SettingsPage = () => {
         if (number.startsWith('4')) return 'VISA';
         if (number.startsWith('5')) return 'MasterCard';
         return null;
+    };
+
+    // --- Vehicle Management Handlers ---
+    const addVehicle = (type) => {
+        if (savedVehicles[type].length < 2) {
+            setSavedVehicles(prev => ({
+                ...prev,
+                [type]: [...prev[type], { number: '', model: '' }]
+            }));
+        }
+    };
+
+    const removeVehicle = (type, index) => {
+        setSavedVehicles(prev => ({
+            ...prev,
+            [type]: prev[type].filter((_, i) => i !== index)
+        }));
+    };
+
+    const updateVehicle = (type, index, field, value) => {
+        setSavedVehicles(prev => ({
+            ...prev,
+            [type]: prev[type].map((v, i) => i === index ? { ...v, [field]: value } : v)
+        }));
     };
 
     // --- 2FA Logic ---
@@ -659,34 +702,65 @@ export const SettingsPage = () => {
                             </div>
 
                             <div className="col-span-2 border-t border-gray-100 pt-4 mt-2">
-                                <h4 className="text-sm font-semibold text-gray-900 mb-4">Vehicle Details</h4>
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                                    <div className="col-span-2 sm:col-span-1">
-                                        <Input label="Vehicle Number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} placeholder="KA 01 AB 1234" />
+                                <h4 className="text-sm font-semibold text-gray-900 mb-4">Manage Vehicles</h4>
+                                <p className="text-xs text-gray-500 mb-4">You can add up to 2 vehicles for each category.</p>
+
+                                <div className="space-y-6">
+                                    {/* Bike Section */}
+                                    <div className="space-y-3">
+                                        <h5 className="text-xs font-bold text-gray-700 uppercase flex items-center">
+                                            <Bike className="h-4 w-4 mr-2" /> Two-Wheelers
+                                        </h5>
+                                        {savedVehicles.bike.map((v, i) => (
+                                            <div key={i} className="flex gap-2">
+                                                <Input value={v.number} onChange={(e) => updateVehicle('bike', i, 'number', e.target.value)} placeholder="Vehicle Number" className="flex-1" />
+                                                <Input value={v.model} onChange={(e) => updateVehicle('bike', i, 'model', e.target.value)} placeholder="Model (Optional)" className="flex-1" />
+                                                <button type="button" onClick={() => removeVehicle('bike', i)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                                            </div>
+                                        ))}
+                                        {savedVehicles.bike.length < 2 && (
+                                            <Button type="button" variant="outline" size="sm" onClick={() => addVehicle('bike')} className="w-full border-dashed">
+                                                <Plus className="h-3 w-3 mr-2" /> Add Bike
+                                            </Button>
+                                        )}
                                     </div>
-                                    <div className="col-span-2 sm:col-span-1">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
-                                        <div className="flex space-x-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setVehicleType('two-wheeler')}
-                                                className={`flex-1 flex items-center justify-center p-2.5 rounded-lg border ${vehicleType === 'two-wheeler' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                            >
-                                                <Bike className="h-4 w-4 mr-2" />
-                                                Two-Wheeler
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setVehicleType('car')}
-                                                className={`flex-1 flex items-center justify-center p-2.5 rounded-lg border ${vehicleType === 'car' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                                            >
-                                                <Car className="h-4 w-4 mr-2" />
-                                                Car
-                                            </button>
-                                        </div>
+
+                                    {/* Car Section */}
+                                    <div className="space-y-3">
+                                        <h5 className="text-xs font-bold text-gray-700 uppercase flex items-center">
+                                            <Car className="h-4 w-4 mr-2" /> Cars
+                                        </h5>
+                                        {savedVehicles.car.map((v, i) => (
+                                            <div key={i} className="flex gap-2">
+                                                <Input value={v.number} onChange={(e) => updateVehicle('car', i, 'number', e.target.value)} placeholder="Vehicle Number" className="flex-1" />
+                                                <Input value={v.model} onChange={(e) => updateVehicle('car', i, 'model', e.target.value)} placeholder="Model (Optional)" className="flex-1" />
+                                                <button type="button" onClick={() => removeVehicle('car', i)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                                            </div>
+                                        ))}
+                                        {savedVehicles.car.length < 2 && (
+                                            <Button type="button" variant="outline" size="sm" onClick={() => addVehicle('car')} className="w-full border-dashed">
+                                                <Plus className="h-3 w-3 mr-2" /> Add Car
+                                            </Button>
+                                        )}
                                     </div>
-                                    <div className="col-span-2">
-                                        <Input label="Vehicle Model (Optional)" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} placeholder="e.g. Honda City, Activa 6G" />
+
+                                    {/* E-Bike Section */}
+                                    <div className="space-y-3">
+                                        <h5 className="text-xs font-bold text-gray-700 uppercase flex items-center">
+                                            <Zap className="h-4 w-4 mr-2" /> Electric Bikes
+                                        </h5>
+                                        {savedVehicles.ebike.map((v, i) => (
+                                            <div key={i} className="flex gap-2">
+                                                <Input value={v.number} onChange={(e) => updateVehicle('ebike', i, 'number', e.target.value)} placeholder="Vehicle Number" className="flex-1" />
+                                                <Input value={v.model} onChange={(e) => updateVehicle('ebike', i, 'model', e.target.value)} placeholder="Model (Optional)" className="flex-1" />
+                                                <button type="button" onClick={() => removeVehicle('ebike', i)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 className="h-4 w-4" /></button>
+                                            </div>
+                                        ))}
+                                        {savedVehicles.ebike.length < 2 && (
+                                            <Button type="button" variant="outline" size="sm" onClick={() => addVehicle('ebike')} className="w-full border-dashed">
+                                                <Plus className="h-3 w-3 mr-2" /> Add E-Bike
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </div>

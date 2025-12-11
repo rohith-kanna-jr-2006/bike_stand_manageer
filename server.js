@@ -30,7 +30,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const PORT = process.env.PORT || 3002; // Backend will run on a different port
+const PORT = process.env.BACKEND_PORT || 3002; // Backend will run on a different port
 
 // --- Connect to MongoDB ---
 connectDB();

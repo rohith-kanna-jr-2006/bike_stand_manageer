@@ -62,6 +62,21 @@ const UserSchema = new mongoose.Schema({
     twoFactorMethod: {
         type: String,
         enum: ['app', 'sms']
+    },
+    // New structure for multiple vehicles
+    savedVehicles: {
+        bike: [{
+            number: String,
+            model: String
+        }],
+        car: [{
+            number: String,
+            model: String
+        }],
+        ebike: [{
+            number: String,
+            model: String
+        }]
     }
 });
 

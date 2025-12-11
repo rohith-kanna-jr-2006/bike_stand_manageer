@@ -500,17 +500,14 @@ export const AdminDashboard = ({ onNavigate }) => {
             alert("Please enter a contact phone number.");
             return;
         }
-        if (!newStandLoc) {
-            alert("Please enter coordinates manually or use the 'Use My Location' button.");
-            return;
-        }
+        // Location validation removed per user request
 
         const standData = {
             name: newStandName,
             address: newStandAddress,
             location: {
                 type: 'Point',
-                coordinates: [newStandLoc.lng, newStandLoc.lat]
+                coordinates: [newStandLoc?.lng || 0, newStandLoc?.lat || 0]
             },
             capacity: parseInt(newStandCapacity) || 0,
             availableSpots: parseInt(newStandCapacity) || 0, // Initially full capacity available
@@ -667,43 +664,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4 flex items-center">
-                                        <Globe className="h-4 w-4 mr-2" /> Geo-Coordinates
-                                    </h4>
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-4">
-                                        <button
-                                            onClick={handleUseCurrentLocation}
-                                            className="w-full flex items-center justify-center px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-medium hover:bg-indigo-200 transition-colors"
-                                        >
-                                            <LocateFixed className="h-4 w-4 mr-2" /> Use My Device Location
-                                        </button>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-xs text-gray-500">Latitude</label>
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    value={newStandLoc?.lat || ''}
-                                                    onChange={(e) => setNewStandLoc(prev => ({ lat: parseFloat(e.target.value), lng: prev?.lng || 0 }))}
-                                                    className="w-full mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                                                    placeholder="28.6139"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-gray-500">Longitude</label>
-                                                <input
-                                                    type="number"
-                                                    step="any"
-                                                    value={newStandLoc?.lng || ''}
-                                                    onChange={(e) => setNewStandLoc(prev => ({ lng: parseFloat(e.target.value), lat: prev?.lat || 0 }))}
-                                                    className="w-full mt-1 px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                                                    placeholder="77.2090"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+
                             </div>
                         </div>
 
@@ -715,106 +676,109 @@ export const AdminDashboard = ({ onNavigate }) => {
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* View Bookings Modal */}
-            {showBookingsModal && viewBookingsStand && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[85vh]">
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                            <div>
-                                <h3 className="font-bold text-gray-900 text-lg flex items-center">
-                                    <FileText className="h-5 w-5 mr-2 text-indigo-600" />
-                                    Stand Bookings
-                                </h3>
-                                <p className="text-sm text-gray-500 mt-0.5 ml-7">
-                                    Viewing history for <span className="font-semibold text-gray-800">{viewBookingsStand.name}</span>
-                                </p>
-                            </div>
-                            <button onClick={() => setShowBookingsModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors bg-white p-1 rounded-full border border-gray-200 shadow-sm">
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-0">
-                            {filteredBookings.length > 0 ? (
-                                <table className="w-full text-left text-sm text-gray-600">
-                                    <thead className="bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider sticky top-0 border-b border-gray-100 z-10">
-                                        <tr>
-                                            <th className="px-6 py-4">Booking ID / User</th>
-                                            <th className="px-6 py-4">Vehicle</th>
-                                            <th className="px-6 py-4">Time</th>
-                                            <th className="px-6 py-4 text-center">Status</th>
-                                            <th className="px-6 py-4 text-right">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {filteredBookings.map((booking) => (
-                                            <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4">
-                                                    <div className="font-medium text-gray-900">
-                                                        {booking.ticketId ? (
-                                                            <span className="font-mono bg-indigo-50 px-2 py-1 rounded text-indigo-700 text-xs border border-indigo-100">
-                                                                {booking.ticketId}
-                                                            </span>
-                                                        ) : (
-                                                            `#${booking.id.slice(0, 8)}`
-                                                        )}
-                                                    </div>
-                                                    <div className="text-xs text-gray-400 mt-1">User: {booking.userName || booking.userId}</div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center">
-                                                        {booking.vehicleType === 'car' ? (
-                                                            <div className="bg-blue-100 p-1.5 rounded text-blue-600 mr-3"><Car className="h-4 w-4" /></div>
-                                                        ) : (
-                                                            <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 mr-3"><Bike className="h-4 w-4" /></div>
-                                                        )}
-                                                        <span className="capitalize text-gray-700">{booking.vehicleType}</span>
-                                                        {booking.vehicleNumber && <span className="ml-2 text-xs text-gray-400">({booking.vehicleNumber})</span>}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center text-gray-900">
-                                                        <Calendar className="h-3.5 w-3.5 mr-2 text-gray-400" />
-                                                        {new Date(booking.startTime).toLocaleDateString()}
-                                                    </div>
-                                                    <div className="flex items-center text-xs text-gray-500 mt-1 ml-5.5 pl-0.5">
-                                                        <Clock className="h-3 w-3 mr-1.5" />
-                                                        {new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${booking.status === 'active'
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : (booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600')
-                                                        }`}>
-                                                        {booking.status === 'active' ? 'Active' : (booking.status === 'cancelled' ? 'Cancelled' : 'Completed')}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right font-medium text-gray-900">
-                                                    ₹{booking.totalAmount ? booking.totalAmount.toFixed(2) : '0.00'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-16 text-center text-gray-500">
-                                    <div className="bg-gray-50 p-4 rounded-full mb-3">
-                                        <FileText className="h-8 w-8 text-gray-300" />
-                                    </div>
-                                    <p className="font-medium text-gray-900">No bookings found</p>
-                                    <p className="text-sm mt-1 max-w-xs mx-auto">There are no recorded transactions for this stand yet.</p>
+            {
+                showBookingsModal && viewBookingsStand && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[85vh]">
+                            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                <div>
+                                    <h3 className="font-bold text-gray-900 text-lg flex items-center">
+                                        <FileText className="h-5 w-5 mr-2 text-indigo-600" />
+                                        Stand Bookings
+                                    </h3>
+                                    <p className="text-sm text-gray-500 mt-0.5 ml-7">
+                                        Viewing history for <span className="font-semibold text-gray-800">{viewBookingsStand.name}</span>
+                                    </p>
                                 </div>
-                            )}
-                        </div>
-                        <div className="p-4 bg-gray-50 border-t border-gray-100 text-right">
-                            <Button onClick={() => setShowBookingsModal(false)} variant="outline">Close</Button>
+                                <button onClick={() => setShowBookingsModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors bg-white p-1 rounded-full border border-gray-200 shadow-sm">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-0">
+                                {filteredBookings.length > 0 ? (
+                                    <table className="w-full text-left text-sm text-gray-600">
+                                        <thead className="bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider sticky top-0 border-b border-gray-100 z-10">
+                                            <tr>
+                                                <th className="px-6 py-4">Booking ID / User</th>
+                                                <th className="px-6 py-4">Vehicle</th>
+                                                <th className="px-6 py-4">Time</th>
+                                                <th className="px-6 py-4 text-center">Status</th>
+                                                <th className="px-6 py-4 text-right">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {filteredBookings.map((booking) => (
+                                                <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-medium text-gray-900">
+                                                            {booking.ticketId ? (
+                                                                <span className="font-mono bg-indigo-50 px-2 py-1 rounded text-indigo-700 text-xs border border-indigo-100">
+                                                                    {booking.ticketId}
+                                                                </span>
+                                                            ) : (
+                                                                `#${booking.id.slice(0, 8)}`
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400 mt-1">User: {booking.userName || booking.userId}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center">
+                                                            {booking.vehicleType === 'car' ? (
+                                                                <div className="bg-blue-100 p-1.5 rounded text-blue-600 mr-3"><Car className="h-4 w-4" /></div>
+                                                            ) : (
+                                                                <div className="bg-indigo-100 p-1.5 rounded text-indigo-600 mr-3"><Bike className="h-4 w-4" /></div>
+                                                            )}
+                                                            <span className="capitalize text-gray-700">{booking.vehicleType}</span>
+                                                            {booking.vehicleNumber && <span className="ml-2 text-xs text-gray-400">({booking.vehicleNumber})</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center text-gray-900">
+                                                            <Calendar className="h-3.5 w-3.5 mr-2 text-gray-400" />
+                                                            {new Date(booking.startTime).toLocaleDateString()}
+                                                        </div>
+                                                        <div className="flex items-center text-xs text-gray-500 mt-1 ml-5.5 pl-0.5">
+                                                            <Clock className="h-3 w-3 mr-1.5" />
+                                                            {new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${booking.status === 'active'
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : (booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600')
+                                                            }`}>
+                                                            {booking.status === 'active' ? 'Active' : (booking.status === 'cancelled' ? 'Cancelled' : 'Completed')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right font-medium text-gray-900">
+                                                        ₹{booking.totalAmount ? booking.totalAmount.toFixed(2) : '0.00'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-16 text-center text-gray-500">
+                                        <div className="bg-gray-50 p-4 rounded-full mb-3">
+                                            <FileText className="h-8 w-8 text-gray-300" />
+                                        </div>
+                                        <p className="font-medium text-gray-900">No bookings found</p>
+                                        <p className="text-sm mt-1 max-w-xs mx-auto">There are no recorded transactions for this stand yet.</p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-4 bg-gray-50 border-t border-gray-100 text-right">
+                                <Button onClick={() => setShowBookingsModal(false)} variant="outline">Close</Button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

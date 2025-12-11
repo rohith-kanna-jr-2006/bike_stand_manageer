@@ -22,54 +22,54 @@ api.interceptors.request.use(
 );
 
 export const standService = {
-    getAll: async (ownerId?: string) => {
+    getAll: async (ownerId) => {
         const params = ownerId ? { ownerId } : {};
         const response = await api.get('/stands', { params });
         return response.data;
     },
-    getById: async (id: string) => {
+    getById: async (id) => {
         const response = await api.get(`/stands/${id}`);
         return response.data;
     },
-    create: async (data: any) => {
+    create: async (data) => {
         const response = await api.post('/stands', data);
         return response.data;
     },
-    update: async (id: string, data: any) => {
+    update: async (id, data) => {
         const response = await api.put(`/stands/${id}`, data);
         return response.data;
     },
-    delete: async (id: string) => {
+    delete: async (id) => {
         const response = await api.delete(`/stands/${id}`);
         return response.data;
     },
 };
 
 export const bookingService = {
-    create: async (data: any) => {
+    create: async (data) => {
         const response = await api.post('/bookings', data);
         return response.data;
     },
-    getUserBookings: async (userId: string) => {
+    getUserBookings: async (userId) => {
         const response = await api.get(`/bookings/user/${userId}`);
         return response.data;
     },
-    getStandBookings: async (standId: string) => {
+    getStandBookings: async (standId) => {
         const response = await api.get(`/bookings/stand/${standId}`);
         return response.data;
     },
-    update: async (id: string, data: any) => {
+    update: async (id, data) => {
         const response = await api.put(`/bookings/${id}`, data);
         return response.data;
     },
 };
 
 export const ticketService = {
-    getById: async (id: string) => {
+    getById: async (id) => {
         const response = await api.get(`/tickets/${id}`);
         return response.data;
     },
-    create: async (data: any) => {
+    create: async (data) => {
         const response = await api.post('/tickets', data);
         return response.data;
     },

@@ -10,13 +10,15 @@ export const AuthProviderWrapper = ({ children }) => {
     useEffect(() => {
         const initAuth = async () => {
             const token = localStorage.getItem('authToken');
-            if (token) {
+            const storedUser = localStorage.getItem('currentUser');
+
+            if (token && storedUser) {
                 try {
-                    // Verify token with backend (optional, or just decode if we trust local storage for UI)
-                    // For now, we'll assume valid if present and try to fetch user details
+                    setUser(JSON.parse(storedUser));
                 } catch (e) {
                     console.error("Auth restoration failed", e);
                     localStorage.removeItem('authToken');
+                    localStorage.removeItem('currentUser');
                 }
             }
             setIsLoading(false);
@@ -28,6 +30,7 @@ export const AuthProviderWrapper = ({ children }) => {
         if (userData) {
             // Direct login (from LoginPage)
             setUser(userData);
+            localStorage.setItem('currentUser', JSON.stringify(userData));
             setIsLoading(false);
         } else {
             // Redirect to login (if called without args)
@@ -38,6 +41,7 @@ export const AuthProviderWrapper = ({ children }) => {
     const logout = useCallback(() => {
         setIsLoading(true);
         localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
         setTimeout(() => {
             setUser(null);
             setIsLoading(false);

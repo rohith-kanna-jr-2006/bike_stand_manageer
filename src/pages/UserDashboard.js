@@ -856,6 +856,28 @@ export const UserDashboard = ({ onNavigate }) => {
                                     </button>
                                 </div>
 
+                                {/* Quick Select Saved Vehicles */}
+                                {user?.savedVehicles && user.savedVehicles[{ 'standard': 'bike', 'electric': 'ebike', 'car': 'car' }[selectedBikeType] || 'bike']?.length > 0 && (
+                                    <div className="mb-2">
+                                        <p className="text-[10px] uppercase font-bold text-gray-400 mb-2">Saved Vehicles</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {user.savedVehicles[{ 'standard': 'bike', 'electric': 'ebike', 'car': 'car' }[selectedBikeType] || 'bike'].map((v, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        setVehicleNumber(v.number);
+                                                        setVehicleModel(v.model || '');
+                                                    }}
+                                                    className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-colors flex items-center"
+                                                >
+                                                    {v.number}
+                                                    {v.model && <span className="opacity-50 ml-1">({v.model})</span>}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Vehicle Details Inputs */}
                                 <div className="space-y-3">
                                     <Input
@@ -883,7 +905,7 @@ export const UserDashboard = ({ onNavigate }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div >
             )}
 
             {/* Welcome Banner */}
@@ -988,81 +1010,83 @@ export const UserDashboard = ({ onNavigate }) => {
             </div>
 
             {/* Real Stands View (Fetched from Firestore) */}
-            {showStands && (
-                <div id="stands-section" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 flex flex-col md:flex-row h-96">
-                    {/* List View */}
-                    <div className="w-full md:w-1/3 border-r border-gray-100 overflow-y-auto">
-                        <div className="px-5 py-4 border-b border-gray-100 bg-emerald-50/30 sticky top-0 backdrop-blur-sm">
-                            <h3 className="font-bold text-gray-800 flex items-center text-sm uppercase tracking-wide">
-                                <MapPin className="h-4 w-4 mr-2 text-emerald-600" />
-                                Available Locations (Real-Time)
-                            </h3>
-                        </div>
-
-                        {loadingStands ? (
-                            <div className="p-8 text-center text-gray-500">
-                                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                                Loading stands...
+            {
+                showStands && (
+                    <div id="stands-section" className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 flex flex-col md:flex-row h-96">
+                        {/* List View */}
+                        <div className="w-full md:w-1/3 border-r border-gray-100 overflow-y-auto">
+                            <div className="px-5 py-4 border-b border-gray-100 bg-emerald-50/30 sticky top-0 backdrop-blur-sm">
+                                <h3 className="font-bold text-gray-800 flex items-center text-sm uppercase tracking-wide">
+                                    <MapPin className="h-4 w-4 mr-2 text-emerald-600" />
+                                    Available Locations (Real-Time)
+                                </h3>
                             </div>
-                        ) : (
-                            <div className="divide-y divide-gray-100">
-                                {stands.length > 0 ? stands.map((stand) => (
-                                    <div
-                                        key={stand.id}
-                                        onClick={() => handleBookStand(stand)}
-                                        className="p-4 hover:bg-emerald-50/30 cursor-pointer transition-colors group relative"
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="font-semibold text-gray-900 text-sm">{stand.name}</p>
-                                                <div className="flex items-center text-xs text-gray-500 mt-1">
-                                                    <Navigation className="h-3 w-3 mr-1" />
-                                                    <span className="truncate max-w-[150px]">{stand.address || 'View on map'}</span>
+
+                            {loadingStands ? (
+                                <div className="p-8 text-center text-gray-500">
+                                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                                    Loading stands...
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {stands.length > 0 ? stands.map((stand) => (
+                                        <div
+                                            key={stand.id}
+                                            onClick={() => handleBookStand(stand)}
+                                            className="p-4 hover:bg-emerald-50/30 cursor-pointer transition-colors group relative"
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-semibold text-gray-900 text-sm">{stand.name}</p>
+                                                    <div className="flex items-center text-xs text-gray-500 mt-1">
+                                                        <Navigation className="h-3 w-3 mr-1" />
+                                                        <span className="truncate max-w-[150px]">{stand.address || 'View on map'}</span>
+                                                    </div>
                                                 </div>
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stand.availableSpots > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {stand.availableSpots} Spots
+                                                </span>
                                             </div>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stand.availableSpots > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                {stand.availableSpots} Spots
-                                            </span>
-                                        </div>
 
-                                        <div className="absolute inset-0 bg-indigo-50/80 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                            <span className="font-bold text-indigo-700 flex items-center text-sm">
-                                                <Ticket className="w-4 h-4 mr-1" /> Book This Stand
-                                            </span>
+                                            <div className="absolute inset-0 bg-indigo-50/80 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <span className="font-bold text-indigo-700 flex items-center text-sm">
+                                                    <Ticket className="w-4 h-4 mr-1" /> Book This Stand
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                )) : (
-                                    <div className="p-6 text-center text-gray-500 text-sm">
-                                        No active stands found. <br /> Ask an admin to add one.
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Static Map View for Demo (Coordinates from real stands) */}
-                    <div className="w-full md:w-2/3 bg-gray-100 relative overflow-hidden group flex items-center justify-center">
-                        {/* Map Grid Pattern */}
-                        <div className="absolute inset-0 opacity-10"
-                            style={{ backgroundImage: 'radial-gradient(#6b7280 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                                    )) : (
+                                        <div className="p-6 text-center text-gray-500 text-sm">
+                                            No active stands found. <br /> Ask an admin to add one.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        {stands.length > 0 ? (
-                            <div className="text-center">
-                                <Map className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                                <p className="text-gray-500 text-sm">Map visualization of {stands.length} stands</p>
-                                <p className="text-xs text-gray-400">(Select a stand from the list to book)</p>
+                        {/* Static Map View for Demo (Coordinates from real stands) */}
+                        <div className="w-full md:w-2/3 bg-gray-100 relative overflow-hidden group flex items-center justify-center">
+                            {/* Map Grid Pattern */}
+                            <div className="absolute inset-0 opacity-10"
+                                style={{ backgroundImage: 'radial-gradient(#6b7280 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
                             </div>
-                        ) : (
-                            <p className="text-gray-400 text-sm">No map data available</p>
-                        )}
 
-                        <div className="absolute bottom-4 right-4 bg-white px-3 py-1 rounded shadow text-xs font-semibold text-gray-500">
-                            Live Data
+                            {stands.length > 0 ? (
+                                <div className="text-center">
+                                    <Map className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-gray-500 text-sm">Map visualization of {stands.length} stands</p>
+                                    <p className="text-xs text-gray-400">(Select a stand from the list to book)</p>
+                                </div>
+                            ) : (
+                                <p className="text-gray-400 text-sm">No map data available</p>
+                            )}
+
+                            <div className="absolute bottom-4 right-4 bg-white px-3 py-1 rounded shadow text-xs font-semibold text-gray-500">
+                                Live Data
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Active Ticket Card - Only visible if ticket generated */}
@@ -1155,6 +1179,6 @@ export const UserDashboard = ({ onNavigate }) => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
