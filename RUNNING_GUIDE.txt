@@ -1,0 +1,43 @@
+SecureCycle - Running Guide
+=========================
+
+This guide provides simple instructions to start the SecureCycle application (Frontend + Backend).
+
+1. PRE-REQUISITES
+-----------------
+Ensure you have installed the dependencies:
+   npm install
+
+Ensure your MongoDB database is running properly.
+
+2. RUNNING EVERYTHING (Recommended)
+-----------------------------------
+To start both the Backend and Frontend with a single command:
+
+   npm run dev
+
+   - This will launch the backend server on port 3002.
+   - This will launch the React frontend application (opening automatically in your browser).
+
+3. RUNNING SEPARATELY
+---------------------
+If you prefer to run them in separate terminal windows:
+
+   Terminal 1 (Backend):
+   npm start
+
+   Terminal 2 (Frontend):
+   npm run client
+
+4. ACCESSING THE APP
+--------------------
+- Frontend (UI): http://localhost:3000
+- Backend (API): http://localhost:3002
+
+5. COMMON SCRIPTS
+-----------------
+- npm install  : Install all dependencies
+- npm run dev  : Run both client and server (Development mode)
+- npm start    : Run server only
+- npm run client : Run client only
+- npm run build : Build the frontend for production

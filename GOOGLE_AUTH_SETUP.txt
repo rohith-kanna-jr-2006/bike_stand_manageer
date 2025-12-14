@@ -1,0 +1,31 @@
+GOOGLE AUTHENTICATION SETUP
+===========================
+
+You are seeing "Error 401: invalid_client" because the application does not have a valid Google Client ID.
+
+STEP 1: GET A CLIENT ID
+-----------------------
+1. Go to Google Cloud Console: https://console.cloud.google.com/apis/credentials
+2. Click "Create Credentials" -> "OAuth client ID".
+3. Application Type: "Web application".
+4. Name: "SecureCycle Local".
+5. IMPORTANT - Authorized JavaScript origins:
+   - http://localhost:3000
+6. IMPORTANT - Authorized redirect URIs:
+   - http://localhost:3000
+7. Click "Create".
+8. Copy the "Client ID" (It looks like big-random-string.apps.googleusercontent.com).
+
+STEP 2: ADD TO .env FILE
+------------------------
+1. Open the file named `.env` in your project folder d:\cycle-bike-stand-management
+2. Add this line at the bottom (replace paste_id_here with your actual ID):
+
+REACT_APP_GOOGLE_CLIENT_ID=paste_your_new_client_id_here
+
+STEP 3: RESTART SERVERS
+-----------------------
+Environment variables are only loaded when the server starts.
+1. Go to your terminal.
+2. Stop the running servers (Ctrl + C).
+3. Run `npm run dev` again.

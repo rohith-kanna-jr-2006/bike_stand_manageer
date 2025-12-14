@@ -1,0 +1,106 @@
+SecureCycle - Bike Stand Management System
+==========================================
+
+INSTALLATION GUIDE
+==================
+
+This document provides instructions on how to set up and run the SecureCycle application on a new desktop environment (Windows/Linux/Mac).
+
+1. REQUIREMENTS
+---------------
+Before installing, ensure the following software is installed on your system:
+
+- Node.js (v18 or higher recommended)
+  - Download: https://nodejs.org/
+- npm (Node Package Manager) - usually installed with Node.js.
+- MongoDB (Community Edition or Local instance)
+  - Download: https://www.mongodb.com/try/download/community
+  - Alternatively, you can use a MongoDB Atlas (Cloud) connection string.
+- Git (Optional, for cloning the repository)
+
+2. TOOLS & TECHNOLOGIES USED
+----------------------------
+The application is built using the MERN stack context:
+
+Frontend:
+- React.js (v18)
+- Tailwind CSS (via CDN and PostCSS) - For Styling
+- Google Maps API - For Location Services
+- Google OAuth - For User Authentication
+- Lucide React - For Icons
+- Axios - For API Requests
+
+Backend:
+- Node.js & Express.js - Server Framework
+- MongoDB & Mongoose - Database & ODM
+- JWT (JSON Web Tokens) - For Secure Authentication
+- dotenv - For Environment Variable Management
+- cors - For Cross-Origin Resource Sharing
+
+3. INSTALLATION STEPS
+---------------------
+Follow these steps to set up the project locally:
+
+Step 1: Get the Source Code
+   - Copy the project folder to your desktop.
+   - OR clone via git: `git clone <repository_url>`
+
+Step 2: Install Dependencies
+   Open your terminal (Command Prompt, PowerShell, or Terminal) and navigate to the project root directory.
+
+   cd path/to/cycle-bike-stand-management
+
+   Run the following command to install all required libraries:
+
+   npm install
+
+   *Note: This will read 'package.json' and install both backend and frontend dependencies if configured in a mono-repo style or if standard 'dependencies' cover both.*
+
+4. ENVIRONMENT CONFIGURATION
+----------------------------
+You must create a `.env` file in the root directory to store sensitive configuration keys.
+Create a file named `.env` and add the following content:
+
+---------------------------------------------------
+# Backend Port
+BACKEND_PORT=3002
+
+# Database Connection (Local or Atlas)
+MONGO_URI=mongodb://127.0.0.1:27017/secure_cycle_db
+
+# Security Key for JWT (Change this to a long random string)
+JWT_SECRET=your_super_secret_jwt_key_change_this
+
+# (Optional) Frontend Specifics if migrated to env vars
+REACT_APP_GOOGLE_CLIENT_ID=your_google_client_id_here
+---------------------------------------------------
+
+*Important:* Ensure your local MongoDB server is running before starting the app.
+
+5. RUNNING THE APPLICATION
+--------------------------
+There are scripts configured to run the application easily.
+
+Option A: Run Development Mode (Recommended)
+This runs both the Backend Server and the React Frontend simultaneously.
+
+   npm run dev
+
+   - Backend will start on: http://localhost:3002
+   - Frontend will open on: http://localhost:3000
+
+Option B: Run Individually
+If you prefer running them in separate terminals:
+
+   1. Start Backend:
+      npm start
+
+   2. Start Frontend:
+      npm run client
+
+6. TROUBLESHOOTING / COMMON COMMENTS
+------------------------------------
+- "MongoNetworkError": Make sure your MongoDB service is running (`mongod` or via Services on Windows).
+- "EADDRINUSE": The port 3002 or 3000 might be in use. Check if another instance is running or change the PORT in `.env`.
+- "Google Maps Error": If the map says "Development purposes only" or doesn't load, verify the Google Maps API Key in `public/index.html` matches your permitted domain/referrer.
+- "URI Malformed": Usually related to Firebase or decoding errors; check console logs. This project uses MongoDB now, so ensure old Firebase configs aren't conflicting.

@@ -45,9 +45,9 @@ const AppContent = () => {
 };
 
 const App = () => {
-    // NOTE: Replace with your actual Client ID from Google Cloud Console
-    // In a real app, use process.env.REACT_APP_GOOGLE_CLIENT_ID
-    const GOOGLE_CLIENT_ID = "219242650520-o09v8htnbkujp3iferc8l00938po0mvm.apps.googleusercontent.com";
+    // NOTE: Get this from Google Cloud Console.
+    // We default to the environment variable REACT_APP_GOOGLE_CLIENT_ID
+    const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID_HERE";
 
     return (
         <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>

@@ -802,7 +802,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 />
                 <StatCard
                     title="Alerts"
-                    value="3"
+                    value="0"
                     icon={<AlertTriangle className="h-6 w-6" />}
                 />
             </div>

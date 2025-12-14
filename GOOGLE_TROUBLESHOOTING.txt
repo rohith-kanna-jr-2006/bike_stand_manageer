@@ -1,0 +1,34 @@
+GOOGLE LOGIN TROUBLESHOOTING
+============================
+
+The error "redirect_uri_mismatch" means your Google Cloud Console settings are slightly wrong.
+
+Please verify these EXACT settings in the Google Cloud Console:
+
+1. Go to https://console.cloud.google.com/apis/credentials
+2. Click the pencil icon on your "SecureCycle Local" credential.
+
+CHECKLIST (Must be exact):
+--------------------------
+
+[ ] Authorized JavaScript origins
+    MUST contain: http://localhost:3000
+    (Make sure there is NO trailing slash at the end. "http://localhost:3000/" is WRONG.)
+
+[ ] Authorized redirect URIs
+    MUST contain: http://localhost:3000
+    MUST contain: http://localhost:3000/auth/google/callback
+
+Important Notes:
+- If you just changed these settings, it can take 5-10 minutes to take effect.
+- Clear your browser cache or try an Incognito window if it still fails after 10 minutes.
+
+PORT ISSUE
+----------
+Your terminal showed "Something is already running on port 3002".
+This means the backend crashed but didn't close properly.
+
+To fix this:
+1. Open Task Manager
+2. End any "Node.js" processes.
+3. OR run this command in terminal: npx kill-port 3002
