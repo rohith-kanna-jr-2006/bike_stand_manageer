@@ -446,7 +446,7 @@ export const SettingsPage = () => {
             setTwoFaMethod(method);
             const secret = totpService.generateSecret();
             setTempSecret(secret);
-            const url = totpService.generateOtpUrl(secret, user?.email || 'user@securecycle');
+            const url = totpService.generateOtpUrl(secret, user?.email || 'user@securepark');
             setQrCodeUrl(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`);
             setTwoFaStep('setup');
             setTwoFaError('');

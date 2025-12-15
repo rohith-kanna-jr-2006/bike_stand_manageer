@@ -45,7 +45,7 @@ const Profile = () => {
             {/* MFA Status Indicator */}
             <div className="mt-2 p-3 bg-green-50 rounded-lg text-sm text-green-700 w-full flex items-center justify-center">
                 <CheckCircle className="w-4 h-4 mr-2" />
-                <span>Authenticated via SecureCycle</span>
+                <span>Authenticated via SecurePark</span>
             </div>
 
             {/* Debug Info (Only visible in dev) */}

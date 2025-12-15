@@ -16,7 +16,7 @@ export const Layout = ({ children, currentView, onNavigate }) => {
                             onClick={() => onNavigate('dashboard')}
                         >
                             <Shield className="h-8 w-8 text-indigo-600 mr-3" />
-                            <span className="text-xl font-bold text-gray-900 tracking-tight">SecureCycle</span>
+                            <span className="text-xl font-bold text-gray-900 tracking-tight">SecurePark</span>
                             <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
                                 {user?.role === 'admin' ? 'Owner Portal' : 'Customer App'}
                             </span>

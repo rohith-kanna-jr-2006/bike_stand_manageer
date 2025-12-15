@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ConfigContext } from '../contexts/ConfigContext';
-import { QrCode, Clock, MapPin, History, Ticket, Map, FileText, ChevronRight, Navigation, Zap, X, CheckCircle, Loader2, Trash2, Eye, Scan, Camera, IndianRupee, Bike, Car, CreditCard, Smartphone, Wallet, ArrowLeft, Lock, SmartphoneNfc } from 'lucide-react';
+import { QrCode, Clock, MapPin, History, Ticket, Map, FileText, ChevronRight, Navigation, Zap, X, CheckCircle, Loader2, Trash2, Eye, IndianRupee, Bike, Car } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { BookingSuccess } from '../components/BookingSuccess';
@@ -42,14 +42,7 @@ export const UserDashboard = ({ onNavigate }) => {
     // History State
     const [historyItems, setHistoryItems] = useState([]);
 
-    // Scanner & Payment State
-    const [showScanModal, setShowScanModal] = useState(false);
-    const [scanStep, setScanStep] = useState('camera');
-    const [scanResult, setScanResult] = useState(null);
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('wallet-default');
 
-    // Fetched Payment Methods from Firestore
-    const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
 
     // --- API: Fetch Stands ---
     useEffect(() => {
@@ -161,16 +154,7 @@ export const UserDashboard = ({ onNavigate }) => {
 
         fetchHistory();
 
-        // 3. Fetch User's Payment Methods for Checkout
-        const fetchPaymentMethods = async () => {
-            // In a real app, this would come from the API user profile
-            if (user.paymentMethods) {
-                setSavedPaymentMethods(user.paymentMethods);
-            } else {
-                setSavedPaymentMethods([]);
-            }
-        };
-        fetchPaymentMethods();
+
     }, [user]);
 
     const saveActiveTicketLocal = (ticket) => {
@@ -409,106 +393,7 @@ export const UserDashboard = ({ onNavigate }) => {
         setShowTicketView(true);
     };
 
-    const handleScanQR = () => {
-        if (!generatedTicket) {
-            alert("You don't have an active ticket to check out.");
-            return;
-        }
-        setShowScanModal(true);
-        setScanStep('camera');
-        setScanResult(null);
 
-        // Simulate scanning delay and fee calculation
-        setTimeout(() => {
-            const bookedTime = activeTicketDetails ? new Date(activeTicketDetails.bookedDate).getTime() : Date.now();
-            const now = Date.now();
-            // Calculate difference in hours
-            const diffHours = Math.max(0.5, (now - bookedTime) / (1000 * 60 * 60));
-
-            // Use config for fee or fallback
-            let calculatedFee = 0;
-            if (config?.calculateParkingFee && activeTicketDetails) {
-                const type = activeTicketDetails.vehicleType === 'car' ? 'car' : 'two-wheeler';
-                calculatedFee = config.calculateParkingFee(type, diffHours);
-            } else {
-                calculatedFee = diffHours * baseRate;
-            }
-
-            const hrs = Math.floor(diffHours);
-            const mins = Math.round((diffHours - hrs) * 60);
-
-            setScanResult({
-                duration: `${hrs}h ${mins}m`,
-                cost: calculatedFee.toFixed(2),
-                amount: calculatedFee,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            });
-            setScanStep('result');
-        }, 2500);
-    };
-
-    const handleProceedToPayment = () => {
-        setScanStep('payment');
-
-        // Select default card if available, else wallet
-        const defaultMethod = savedPaymentMethods.find(m => m.isDefault);
-        if (defaultMethod) {
-            setSelectedPaymentMethod(defaultMethod.id);
-        } else {
-            setSelectedPaymentMethod('wallet-default');
-        }
-    };
-
-    const handleConfirmPayment = async () => {
-        setScanStep('processing');
-
-        try {
-            // Identify used method name for history
-            let methodName = 'SecureCycle Wallet';
-            const selected = savedPaymentMethods.find(m => m.id === selectedPaymentMethod);
-            if (selected) {
-                if (selected.method === 'card') methodName = `${selected.type} •••• ${selected.last4}`;
-                if (selected.method === 'upi') methodName = `UPI (${selected.upiId})`;
-            }
-
-            if (activeTicketDetails && scanResult) {
-                // Update API Booking to 'Completed' (only if real ticket)
-                if (!activeTicketDetails.id.startsWith('OFFLINE')) {
-                    await fetch(`http://localhost:3002/api/bookings/${activeTicketDetails.id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            status: 'completed',
-                            endTime: new Date(),
-                            totalAmount: scanResult.amount,
-                            paymentMethod: methodName
-                        }),
-                    });
-                }
-            }
-
-            // Clear local active ticket
-            clearActiveTicketLocal();
-
-            setTimeout(() => {
-                setScanStep('success');
-            }, 1500);
-
-        } catch (error) {
-            console.error("Payment update failed:", error);
-            alert("Payment recorded locally but failed to sync. Please contact support.");
-            setScanStep('success'); // Allow exit for demo purposes
-            clearActiveTicketLocal();
-        }
-    };
-
-    const closeScanModal = () => {
-        setShowScanModal(false);
-        setScanResult(null);
-        setScanStep('camera');
-    };
 
     return (
         <div className="space-y-8 relative">
@@ -599,191 +484,7 @@ export const UserDashboard = ({ onNavigate }) => {
                 </div>
             )}
 
-            {/* Scanner & Payment Modal */}
-            {showScanModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden relative">
-                        <button onClick={closeScanModal} className="absolute top-4 right-4 z-10 p-2 bg-black/20 hover:bg-black/40 rounded-full text-white transition-colors">
-                            <X className="h-5 w-5" />
-                        </button>
 
-                        {/* Back button for Payment Step */}
-                        {scanStep === 'payment' && (
-                            <button onClick={() => setScanStep('result')} className="absolute top-4 left-4 z-10 p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-                                <ArrowLeft className="h-5 w-5" />
-                            </button>
-                        )}
-
-                        {scanStep === 'camera' && (
-                            <div className="bg-black relative h-[500px] flex flex-col items-center justify-center">
-                                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-
-                                <div className="relative w-64 h-64 border-4 border-white/30 rounded-3xl overflow-hidden">
-                                    <div className="absolute top-0 left-0 w-full h-1 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-[scan_2s_ease-in-out_infinite]"></div>
-                                    <div className="absolute inset-0 border-2 border-white/80 rounded-3xl"></div>
-
-                                    {/* Corner markers */}
-                                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-xl"></div>
-                                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-indigo-500 rounded-tr-xl"></div>
-                                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-xl"></div>
-                                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-xl"></div>
-                                </div>
-
-                                <div className="mt-8 text-center space-y-2 relative z-10">
-                                    <Camera className="h-8 w-8 text-white mx-auto animate-pulse" />
-                                    <p className="text-white font-medium">Scanning Exit Code...</p>
-                                    <p className="text-white/60 text-xs">Simulating checkout for ticket #{activeTicketDetails?.ticketId.slice(-6)}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {scanStep === 'result' && (
-                            <div className="p-6 animate-in slide-in-from-bottom-10 duration-300">
-                                <div className="text-center mb-6">
-                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <CheckCircle className="h-8 w-8 text-green-600" />
-                                    </div>
-                                    <h3 className="text-xl font-bold text-gray-900">Session Calculated</h3>
-                                    <p className="text-gray-500 text-sm">{activeTicketDetails?.standName}</p>
-                                </div>
-
-                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 space-y-4 mb-6">
-                                    <div className="flex justify-between items-center pb-4 border-b border-gray-200">
-                                        <div className="flex items-center text-gray-600">
-                                            <Clock className="h-4 w-4 mr-2" />
-                                            <span>Duration</span>
-                                        </div>
-                                        <span className="font-bold text-gray-900">{scanResult?.duration}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center pb-4 border-b border-gray-200">
-                                        <div className="flex items-center text-gray-600">
-                                            <Zap className="h-4 w-4 mr-2" />
-                                            <span>Rate Applied</span>
-                                        </div>
-                                        <span className="font-medium text-gray-900">
-                                            {activeTicketDetails?.vehicleType === 'car' ? 'Car Rate' : 'Bike Rate'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-center pt-2">
-                                        <div className="flex items-center text-gray-800 font-bold">
-                                            <span>Total Amount</span>
-                                        </div>
-                                        <span className="text-2xl font-bold text-indigo-600">₹{scanResult?.cost}</span>
-                                    </div>
-                                </div>
-
-                                <Button className="w-full py-3 text-lg" onClick={handleProceedToPayment}>
-                                    Proceed to Pay ₹{scanResult?.cost}
-                                </Button>
-                                <p className="text-center text-xs text-gray-400 mt-4">Calculated at {scanResult?.time}</p>
-                            </div>
-                        )}
-
-                        {scanStep === 'payment' && (
-                            <div className="p-6 animate-in slide-in-from-right-10 duration-300">
-                                <div className="text-center mb-6">
-                                    <h3 className="text-xl font-bold text-gray-900">Select Payment Method</h3>
-                                    <p className="text-gray-500 text-sm">Amount to pay: <span className="text-indigo-600 font-bold">₹{scanResult?.cost}</span></p>
-                                </div>
-
-                                <div className="space-y-3 mb-8 max-h-64 overflow-y-auto">
-                                    {/* Wallet Option (Always Available) */}
-                                    <button
-                                        key="wallet-default"
-                                        onClick={() => setSelectedPaymentMethod('wallet-default')}
-                                        className={`w-full flex items-center p-4 rounded-xl border-2 transition-all ${selectedPaymentMethod === 'wallet-default' ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-gray-100 hover:border-gray-200'}`}
-                                    >
-                                        <div className="mr-4 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
-                                            <Wallet className="h-5 w-5 text-orange-600" />
-                                        </div>
-                                        <div className="flex-1 text-left">
-                                            <p className="font-bold text-gray-900 text-sm">SecureCycle Wallet</p>
-                                            <p className="text-xs text-gray-500">Balance: ₹450</p>
-                                        </div>
-                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === 'wallet-default' ? 'border-indigo-600' : 'border-gray-300'}`}>
-                                            {selectedPaymentMethod === 'wallet-default' && <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full" />}
-                                        </div>
-                                    </button>
-
-                                    {/* Saved Methods */}
-                                    {savedPaymentMethods.map((method) => (
-                                        <button
-                                            key={method.id}
-                                            onClick={() => setSelectedPaymentMethod(method.id)}
-                                            className={`w-full flex items-center p-4 rounded-xl border-2 transition-all ${selectedPaymentMethod === method.id ? 'border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600' : 'border-gray-100 hover:border-gray-200'}`}
-                                        >
-                                            <div className="mr-4 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
-                                                {method.method === 'upi' ? (
-                                                    <SmartphoneNfc className="h-5 w-5 text-green-600" />
-                                                ) : (
-                                                    <CreditCard className="h-5 w-5 text-indigo-600" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1 text-left">
-                                                <p className="font-bold text-gray-900 text-sm">
-                                                    {method.method === 'upi' ? `UPI (${method.upiId})` : `${method.type} •••• ${method.last4}`}
-                                                </p>
-                                                <p className="text-xs text-gray-500 capitalize">{method.holderName}</p>
-                                            </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === method.id ? 'border-indigo-600' : 'border-gray-300'}`}>
-                                                {selectedPaymentMethod === method.id && <div className="w-2.5 h-2.5 bg-indigo-600 rounded-full" />}
-                                            </div>
-                                        </button>
-                                    ))}
-
-                                    {savedPaymentMethods.length === 0 && (
-                                        <div onClick={() => onNavigate('settings')} className="text-center py-4 text-xs text-gray-400 cursor-pointer hover:text-indigo-600 transition-colors border-2 border-dashed border-gray-100 rounded-xl">
-                                            + Add new card in Settings
-                                        </div>
-                                    )}
-                                </div>
-
-                                <Button className="w-full py-3 text-lg" onClick={handleConfirmPayment}>
-                                    Pay ₹{scanResult?.cost} Securely
-                                </Button>
-                                <div className="flex items-center justify-center mt-4 text-xs text-gray-400">
-                                    <Lock className="w-3 h-3 mr-1" /> Encrypted Payment
-                                </div>
-                            </div>
-                        )}
-
-                        {scanStep === 'processing' && (
-                            <div className="p-6 h-[400px] flex flex-col items-center justify-center animate-in fade-in duration-500">
-                                <div className="relative">
-                                    <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <IndianRupee className="h-6 w-6 text-indigo-600" />
-                                    </div>
-                                </div>
-                                <h3 className="text-xl font-bold text-gray-900 mt-6">Processing Payment...</h3>
-                                <p className="text-gray-500 text-sm mt-2">Updating SecureCycle Database...</p>
-                            </div>
-                        )}
-
-                        {scanStep === 'success' && (
-                            <div className="p-6 h-[500px] flex flex-col items-center justify-center animate-in zoom-in-95 duration-500 bg-gradient-to-br from-green-50 to-white">
-                                <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-200 animate-[bounce_1s_ease-out]">
-                                    <CheckCircle className="h-12 w-12 text-white" />
-                                </div>
-                                <h3 className="text-2xl font-bold text-gray-900">Payment Successful!</h3>
-                                <p className="text-gray-500 mt-2">Transaction Recorded</p>
-
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 mt-8 w-full shadow-sm">
-                                    <div className="flex items-center justify-center space-x-2 text-indigo-600 font-bold mb-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                        <span>Gate Opening...</span>
-                                    </div>
-                                    <p className="text-center text-xs text-gray-400">Please exit the stand within 5 minutes.</p>
-                                </div>
-
-                                <Button className="w-full mt-auto" onClick={closeScanModal}>
-                                    Done
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
 
             {/* Ticket Generation Input Modal */}
             {showTicketModal && (
@@ -954,23 +655,7 @@ export const UserDashboard = ({ onNavigate }) => {
                     </div>
                 </button>
 
-                {/* Scan QR Code (Check Out) */}
-                <button
-                    onClick={handleScanQR}
-                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-purple-200 transition-all group text-left relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                    <div className="relative z-10">
-                        <div className="bg-purple-100 w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-600 transition-colors">
-                            <Scan className="h-6 w-6 text-purple-600 group-hover:text-white transition-colors" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 group-hover:text-purple-600 transition-colors">Checkout / Pay</h3>
-                        <p className="text-sm text-gray-500 mt-2 mb-4">Leaving? Scan to calculate fee and exit.</p>
-                        <span className="text-sm font-medium text-purple-600 flex items-center">
-                            Scan & Pay <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                        </span>
-                    </div>
-                </button>
+
 
                 {/* Find Stands Action */}
                 <button

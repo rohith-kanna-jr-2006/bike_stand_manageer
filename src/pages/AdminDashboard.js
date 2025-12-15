@@ -6,7 +6,7 @@ import { Input } from '../components/ui/Input';
 import {
     IndianRupee, Activity, AlertTriangle,
     Map as MapIcon, FileText, ChevronRight, X,
-    MapPin, Search, Phone, FileBadge, Tag, LocateFixed, Globe, List, CheckSquare, Square, CheckCircle, Plus, Filter, Edit2, Trash2, AlertCircle, Mail, Calendar, Clock, Bike, Car
+    MapPin, Search, Phone, FileBadge, Tag, LocateFixed, Globe, List, CheckSquare, Square, CheckCircle, Plus, Filter, Edit2, Trash2, AlertCircle, Mail, Calendar, Clock, Bike, Car, QrCode
 } from 'lucide-react';
 import { standService, bookingService } from '../services/api';
 import {
@@ -195,6 +195,10 @@ export const AdminDashboard = ({ onNavigate }) => {
     const [showBookingsModal, setShowBookingsModal] = useState(false);
     const [viewBookingsStand, setViewBookingsStand] = useState(null);
 
+    // QR Code State
+    const [showQrModal, setShowQrModal] = useState(false);
+    const [qrStand, setQrStand] = useState(null);
+
     // Form State
     const [newStandName, setNewStandName] = useState('');
     const [newStandCapacity, setNewStandCapacity] = useState('20');
@@ -268,6 +272,12 @@ export const AdminDashboard = ({ onNavigate }) => {
     const handleViewBookings = (stand) => {
         setViewBookingsStand(stand);
         setShowBookingsModal(true);
+    };
+
+    // Helper to open QR modal
+    const handleShowQr = (stand) => {
+        setQrStand(stand);
+        setShowQrModal(true);
     };
 
     // Bulk Actions Logic
@@ -953,6 +963,13 @@ export const AdminDashboard = ({ onNavigate }) => {
                                                         <FileText className="h-3.5 w-3.5 mr-1" /> Bookings
                                                     </button>
                                                     <button
+                                                        onClick={() => handleShowQr(stand)}
+                                                        className="text-purple-600 hover:text-purple-900 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-xs font-medium flex items-center"
+                                                        title="Generate QR"
+                                                    >
+                                                        <QrCode className="h-3.5 w-3.5 mr-1" /> QR
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleEditStandClick(stand)}
                                                         className="text-gray-600 hover:text-gray-900 p-2 hover:bg-gray-100 rounded-lg transition-colors"
                                                         title="Edit"
@@ -1036,6 +1053,44 @@ export const AdminDashboard = ({ onNavigate }) => {
                     </div>
                 </div>
             </div>
+
+            {/* Stand QR Code Modal */}
+            {showQrModal && qrStand && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-900 flex items-center">
+                                <QrCode className="h-5 w-5 mr-2 text-indigo-600" />
+                                Stand QR Code
+                            </h3>
+                            <button onClick={() => setShowQrModal(false)} className="text-gray-400 hover:text-gray-600">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 flex flex-col items-center justify-center space-y-4 bg-white">
+                            <div className="bg-white p-3 border-4 border-gray-900 rounded-xl shadow-lg">
+                                <img
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify({
+                                        action: 'book',
+                                        standId: qrStand.id,
+                                        name: qrStand.name
+                                    }))}`}
+                                    alt="Stand QR"
+                                    className="w-48 h-48"
+                                />
+                            </div>
+                            <div className="text-center">
+                                <p className="font-bold text-gray-900 text-lg">{qrStand.name}</p>
+                                <p className="text-sm text-gray-500">{qrStand.address}</p>
+                                <p className="text-xs text-gray-400 mt-2">Scan with User App to Book</p>
+                            </div>
+                            <Button className="w-full mt-4" onClick={() => window.print()}>
+                                <FileText className="h-4 w-4 mr-2" /> Print QR Code
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

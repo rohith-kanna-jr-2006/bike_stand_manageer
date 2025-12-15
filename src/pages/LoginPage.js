@@ -33,7 +33,7 @@ export const LoginPage = () => {
 
     // Default Personas
     const USER_DEFAULT_EMAIL = 'alice.parker@gmail.com';
-    const ADMIN_DEFAULT_EMAIL = 'admin@securecycle.com';
+    const ADMIN_DEFAULT_EMAIL = 'admin@securepark.com';
 
     // Form States
     const [email, setEmail] = useState(USER_DEFAULT_EMAIL);
@@ -446,7 +446,7 @@ export const LoginPage = () => {
                     </div>
 
                     <h1 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
-                        {activePortal === 'admin' ? 'SecureCycle Admin' : 'SecureCycle'}
+                        {activePortal === 'admin' ? 'SecurePark Admin' : 'SecurePark'}
                     </h1>
 
                     <p className="text-lg md:text-xl text-indigo-100 max-w-md leading-relaxed">
@@ -713,7 +713,7 @@ export const LoginPage = () => {
                         )}
 
                         <p className="text-xs text-center text-gray-400 mt-8">
-                            Protected by SecureCycle Identity • Version 2.4.0
+                            Protected by SecurePark Identity • Version 2.4.0
                         </p>
                     </div>
                 </div>

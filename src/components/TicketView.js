@@ -71,7 +71,7 @@ export const TicketView = ({ ticket, onClose }) => {
             const finalHeight = (imgProps.height * availableWidth) / imgProps.width;
 
             pdf.addImage(imgData, 'PNG', margin, margin, availableWidth, finalHeight);
-            pdf.save(`SecureCycle-Ticket-${ticket.ticketId}.pdf`);
+            pdf.save(`SecurePark-Ticket-${ticket.ticketId}.pdf`);
 
         } catch (error) {
             console.error('Failed to download ticket', error);
@@ -87,7 +87,7 @@ export const TicketView = ({ ticket, onClose }) => {
                 {/* Header */}
                 <div className={`p-4 border-b border-gray-100 flex justify-between items-center text-white ${isCompleted ? 'bg-green-600' : (isCancelled ? 'bg-red-600' : 'bg-indigo-600')}`}>
                     <h3 className="font-bold flex items-center">
-                        {isCompleted ? 'Payment Receipt' : (isCancelled ? 'Cancelled Ticket' : 'SecureCycle Pass')}
+                        {isCompleted ? 'Payment Receipt' : (isCancelled ? 'Cancelled Ticket' : 'SecurePark Pass')}
                     </h3>
                     <button onClick={onClose} className="text-white/80 hover:text-white hover:bg-white/10 p-1 rounded-full transition-colors">
                         <X className="h-5 w-5" />
@@ -184,9 +184,9 @@ export const TicketView = ({ ticket, onClose }) => {
                         {/* Watermark / Footer of Ticket */}
                         <div className="bg-gray-100 px-6 py-3 text-center border-t border-gray-200">
                             <p className="text-[10px] text-gray-500">
-                                {isCompleted ? 'Thank you for using SecureCycle.' : 'Scan this code at the entry gate.'}
+                                {isCompleted ? 'Thank you for using SecurePark.' : 'Scan this code at the entry gate.'}
                             </p>
-                            <p className="text-[10px] text-gray-400 font-mono mt-1">SECURE-CYCLE-SYSTEM</p>
+                            <p className="text-[10px] text-gray-400 font-mono mt-1">SECURE-PARK-SYSTEM</p>
                         </div>
                     </div>
                 </div>

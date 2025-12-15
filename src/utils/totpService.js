@@ -14,7 +14,7 @@ export const totpService = {
      */
     generateOtpUrl: (secretBase32, email) => {
         const totp = new OTPAuth.TOTP({
-            issuer: "SecureCycle",
+            issuer: "SecurePark",
             label: email,
             algorithm: "SHA1",
             digits: 6,
@@ -31,7 +31,7 @@ export const totpService = {
         if (!secretBase32 || !token) return false;
 
         const totp = new OTPAuth.TOTP({
-            issuer: "SecureCycle",
+            issuer: "SecurePark",
             label: "User",
             algorithm: "SHA1",
             digits: 6,
