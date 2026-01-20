@@ -212,7 +212,7 @@ export const SettingsPage = () => {
 
                 // Call backend API to update user profile
                 const userId = user.id || user._id;
-                await fetch(`http://localhost:3002/api/users/${userId}`, {
+                await fetch(`http://10.38.187.211:3002/api/users/${userId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -395,7 +395,7 @@ export const SettingsPage = () => {
         try {
             if (user) {
                 const userId = user.id || user._id;
-                await fetch(`http://localhost:3002/api/users/${userId}`, {
+                await fetch(`http://10.38.187.211:3002/api/users/${userId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -494,7 +494,7 @@ export const SettingsPage = () => {
             try {
                 if (user) {
                     const userId = user.id || user._id;
-                    await fetch(`http://localhost:3002/api/users/${userId}`, {
+                    await fetch(`http://10.38.187.211:3002/api/users/${userId}`, {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',

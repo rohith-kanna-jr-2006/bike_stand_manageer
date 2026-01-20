@@ -177,6 +177,12 @@ export const TicketView = ({ ticket, onClose }) => {
                                         <span className="text-lg font-bold text-green-600">₹{ticket.amount}</span>
                                     </div>
                                 )}
+                                <div className="col-span-2 pt-2 flex justify-between items-center">
+                                    <span className="text-xs font-bold text-gray-500 uppercase">Payment Status</span>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${ticket.paymentStatus === 'Paid' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                                        {ticket.paymentStatus || 'Pending'} ({ticket.paymentMethod || 'Cash'})
+                                    </span>
+                                </div>
 
                             </div>
                         </div>

@@ -112,6 +112,10 @@ const updateBooking = async (req, res) => {
             if (booking.stand) {
                 await Stand.findByIdAndUpdate(booking.stand, { $inc: { availableSpots: 1 } });
             }
+            // Auto-mark as Paid if completed
+            if (req.body.status === 'completed') {
+                req.body.paymentStatus = 'Paid';
+            }
         }
 
         booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
@@ -148,10 +152,31 @@ const getBookingById = async (req, res) => {
     }
 };
 
+// @desc    Get booking by Ticket ID (for Scanner)
+// @route   GET /api/bookings/ticket/:ticketId
+// @access  Private
+const getBookingByTicketId = async (req, res) => {
+    try {
+        const booking = await Booking.findOne({ ticketId: req.params.ticketId }).populate('stand');
+
+        if (!booking) {
+            return res.status(404).json({ success: false, error: 'Ticket not found' });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: booking
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
 module.exports = {
     createBooking,
     getUserBookings,
     getStandBookings,
     updateBooking,
-    getBookingById
+    getBookingById,
+    getBookingByTicketId
 };

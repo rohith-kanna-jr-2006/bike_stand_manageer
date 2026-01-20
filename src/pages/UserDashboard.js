@@ -28,6 +28,8 @@ export const UserDashboard = ({ onNavigate }) => {
 
     const [generatedTicket, setGeneratedTicket] = useState(null);
     const [selectedBikeType, setSelectedBikeType] = useState('standard');
+    const [paymentMethod, setPaymentMethod] = useState('Cash');
+
 
     // Booking State
     const [selectedStand, setSelectedStand] = useState(null);
@@ -48,7 +50,7 @@ export const UserDashboard = ({ onNavigate }) => {
     useEffect(() => {
         const fetchStands = async () => {
             try {
-                const response = await fetch('http://localhost:3002/api/stands');
+                const response = await fetch('http://10.38.187.211:3002/api/stands');
                 const data = await response.json();
                 if (data.success) {
                     // Filter for active stands and map _id to id
@@ -119,7 +121,7 @@ export const UserDashboard = ({ onNavigate }) => {
             try {
                 const userId = user.id || user._id;
                 console.log("Fetching history for userId:", userId);
-                const response = await fetch(`http://localhost:3002/api/bookings/user/${userId}`);
+                const response = await fetch(`http://10.38.187.211:3002/api/bookings/user/${userId}`);
                 const data = await response.json();
                 console.log("History API response:", data);
 
@@ -213,13 +215,15 @@ export const UserDashboard = ({ onNavigate }) => {
             vehicleNumber: vehicleNumber,
             vehicleModel: vehicleModel,
             status: 'active',
-            totalAmount: 0
+            totalAmount: 0,
+            paymentMethod: paymentMethod,
+            paymentStatus: paymentMethod === 'Cash' ? 'Pending' : 'Paid'
         };
 
         try {
             let newTicketId;
 
-            const response = await fetch('http://localhost:3002/api/bookings', {
+            const response = await fetch('http://10.38.187.211:3002/api/bookings', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -234,7 +238,9 @@ export const UserDashboard = ({ onNavigate }) => {
                     vehicleNumber: vehicleNumber,
                     vehicleModel: vehicleModel,
                     status: 'active',
-                    totalAmount: 0
+                    totalAmount: 0,
+                    paymentMethod: paymentMethod,
+                    paymentStatus: paymentMethod === 'Cash' ? 'Pending' : 'Paid'
                 }),
             });
 
@@ -254,7 +260,9 @@ export const UserDashboard = ({ onNavigate }) => {
                     vehicleNumber: vehicleNumber,
                     vehicleModel: vehicleModel,
                     standId: selectedStand.id,
-                    status: 'active'
+                    status: 'active',
+                    paymentMethod: paymentMethod,
+                    paymentStatus: paymentMethod === 'Cash' ? 'Pending' : 'Paid'
                 };
 
                 // Save State & Persistence
@@ -302,7 +310,7 @@ export const UserDashboard = ({ onNavigate }) => {
                         // Fetch fresh data from API to ensure we have the latest ticketId
                         if (ticket.id && !ticket.id.startsWith('OFFLINE')) {
                             try {
-                                const response = await fetch(`http://localhost:3002/api/bookings/${ticket.id}`);
+                                const response = await fetch(`http://10.38.187.211:3002/api/bookings/${ticket.id}`);
                                 const data = await response.json();
                                 if (data.success && data.data) {
                                     // Update local state with fresh data
@@ -348,7 +356,7 @@ export const UserDashboard = ({ onNavigate }) => {
                 try {
                     // Update API if it's a real ticket
                     if (!activeTicketDetails.id.startsWith('OFFLINE')) {
-                        await fetch(`http://localhost:3002/api/bookings/${activeTicketDetails.id}`, {
+                        await fetch(`http://10.38.187.211:3002/api/bookings/${activeTicketDetails.id}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -595,6 +603,25 @@ export const UserDashboard = ({ onNavigate }) => {
                                     />
                                 </div>
 
+                                {/* Payment Method Selection */}
+                                <div className="space-y-3">
+                                    <p className="text-sm font-medium text-gray-700">Payment Method</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => setPaymentMethod('Cash')}
+                                            className={`p-3 rounded-lg border text-center transition-all ${paymentMethod === 'Cash' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                                        >
+                                            <div className="font-semibold text-xs mb-1">Cash (Pay Later)</div>
+                                        </button>
+                                        <button
+                                            onClick={() => setPaymentMethod('UPI')}
+                                            className={`p-3 rounded-lg border text-center transition-all ${paymentMethod === 'UPI' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                                        >
+                                            <div className="font-semibold text-xs mb-1">Pay Online (UPI)</div>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <Button
                                     onClick={handleGenerateTicket}
                                     isLoading={isGenerating}
@@ -821,25 +848,28 @@ export const UserDashboard = ({ onNavigate }) => {
                                             {new Date(activeTicketDetails?.bookedDate || Date.now()).toLocaleTimeString()}
                                         </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Rate</p>
-                                        <p className="text-gray-900 mt-1 font-medium">
-                                            {activeTicketDetails?.vehicleType === 'car' ? 'Standard Car Rates' : `Standard Bike Rates`}
-                                        </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Status & Payment</p>
+                                    <div className="flex items-center mt-1">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${activeTicketDetails?.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'} capitalize`}>
+                                            {activeTicketDetails?.paymentStatus || 'Pending'} ({activeTicketDetails?.paymentMethod || 'Cash'})
+                                        </span>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div className="pt-2 flex space-x-3">
-                                    <Button variant="outline" className="flex-1 text-red-600 hover:bg-red-50 border-gray-200" onClick={handleCancelTicket}>
-                                        Cancel Ticket
-                                    </Button>
-                                    <Button className="flex-1" onClick={() => setShowTicketView(true)}>
-                                        View Details
-                                    </Button>
-                                </div>
+                            <div className="pt-2 flex space-x-3">
+                                <Button variant="outline" className="flex-1 text-red-600 hover:bg-red-50 border-gray-200" onClick={handleCancelTicket}>
+                                    Cancel Ticket
+                                </Button>
+                                <Button className="flex-1" onClick={() => setShowTicketView(true)}>
+                                    View Details
+                                </Button>
                             </div>
                         </div>
                     </div>
+
                 )}
 
                 {/* Profile / Quick Info - Span full width if no ticket */}

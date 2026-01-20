@@ -98,7 +98,7 @@ export const LoginPage = () => {
         onSuccess: async (tokenResponse) => {
             try {
                 // Send access token to backend
-                const response = await fetch('http://localhost:3002/api/auth/google', {
+                const response = await fetch('http://10.38.187.211:3002/api/auth/google', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -245,7 +245,7 @@ export const LoginPage = () => {
         setErrors({});
 
         try {
-            const endpoint = isSignUp ? 'http://localhost:3002/api/auth/register' : 'http://localhost:3002/api/auth/login';
+            const endpoint = isSignUp ? 'http://10.38.187.211:3002/api/auth/register' : 'http://10.38.187.211:3002/api/auth/login';
             const payload = isSignUp
                 ? { name: fullName, email, password, role }
                 : { email, password };

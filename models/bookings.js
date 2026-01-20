@@ -40,7 +40,18 @@ const BookingSchema = new mongoose.Schema({
     standOwnerId: {
         type: String,
         required: true // Ensures the correct admin sees this booking
-    }
+    },
+    paymentMethod: {
+        type: String,
+        enum: ['Cash', 'UPI', 'Card', 'Wallet'],
+        default: 'Cash'
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['Pending', 'Paid', 'Failed'],
+        default: 'Pending'
+    },
+    transactionId: String
 });
 
 module.exports = mongoose.model('Booking', BookingSchema);

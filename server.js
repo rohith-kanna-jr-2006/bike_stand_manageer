@@ -7,7 +7,7 @@ const connectDB = require('./config/db');
 const User = require('./models/User');
 const { getTicketById, createTicket } = require('./controllers/ticketController');
 const { createStand, getAllStands, getStandById, updateStand, deleteStand } = require('./controllers/standController');
-const { createBooking, getUserBookings, getStandBookings, updateBooking, getBookingById } = require('./controllers/bookingController');
+const { createBooking, getUserBookings, getStandBookings, updateBooking, getBookingById, getBookingByTicketId } = require('./controllers/bookingController');
 const { updateUser, getUser } = require('./controllers/userController');
 const { register, login } = require('./controllers/authController');
 
@@ -54,6 +54,7 @@ app.get('/api/bookings/user/:userId', getUserBookings);
 app.get('/api/bookings/stand/:standId', getStandBookings);
 app.get('/api/bookings/:id', getBookingById);
 app.put('/api/bookings/:id', updateBooking);
+app.get('/api/bookings/ticket/:ticketId', getBookingByTicketId);
 
 // User Routes
 app.put('/api/users/:id', updateUser);

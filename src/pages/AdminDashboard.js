@@ -6,13 +6,15 @@ import { Input } from '../components/ui/Input';
 import {
     IndianRupee, Activity, AlertTriangle,
     Map as MapIcon, FileText, ChevronRight, X,
-    MapPin, Search, Phone, FileBadge, Tag, LocateFixed, Globe, List, CheckSquare, Square, CheckCircle, Plus, Filter, Edit2, Trash2, AlertCircle, Mail, Calendar, Clock, Bike, Car, QrCode
+    MapPin, Search, Phone, FileBadge, Tag, LocateFixed, Globe, List, CheckSquare, Square, CheckCircle, Plus, Filter, Edit2, Trash2, AlertCircle, Mail, Calendar, Clock, Bike, Car, QrCode, Scan
 } from 'lucide-react';
 import { standService, bookingService } from '../services/api';
 import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
+import { QrReader } from 'react-qr-reader';
+
 
 const COLORS = ['#4f46e5', '#10b981', '#ef4444', '#f59e0b'];
 
@@ -199,6 +201,11 @@ export const AdminDashboard = ({ onNavigate }) => {
     const [showQrModal, setShowQrModal] = useState(false);
     const [qrStand, setQrStand] = useState(null);
 
+    // Scanner / Checkout State
+    const [showScanner, setShowScanner] = useState(false);
+    const [checkoutBooking, setCheckoutBooking] = useState(null);
+    const [checkoutStep, setCheckoutStep] = useState('scan'); // 'scan', 'confirm', 'success'
+
     // Form State
     const [newStandName, setNewStandName] = useState('');
     const [newStandCapacity, setNewStandCapacity] = useState('20');
@@ -333,6 +340,77 @@ export const AdminDashboard = ({ onNavigate }) => {
         } catch (error) {
             console.error("Bulk delete failed:", error);
             alert("Failed to delete some stands.");
+        }
+    };
+
+    // SCANNER HANDLERS
+    const handleScanTicket = async (result, error) => {
+        if (!!result && checkoutStep === 'scan') {
+            const ticketId = result?.text;
+            if (!ticketId) return;
+
+            setCheckoutStep('loading');
+            try {
+                const response = await bookingService.getByTicketId(ticketId);
+                if (response.success) {
+                    const booking = response.data;
+
+                    // Logic to calculate fare
+                    const now = new Date();
+                    const start = new Date(booking.startTime);
+                    const diffMs = now - start;
+                    const diffHrs = diffMs / 36e5;
+                    const roundedHrs = Math.ceil(diffHrs) || 1; // Min 1 hour
+
+                    let rate = 10; // Default
+                    if (booking.stand && booking.stand.rates) {
+                        rate = booking.vehicleType === 'car' ? booking.stand.rates.car : booking.stand.rates.bike;
+                    }
+
+                    const calculatedAmount = roundedHrs * rate;
+
+                    setCheckoutBooking({
+                        ...booking,
+                        durationHours: roundedHrs,
+                        calculatedAmount: calculatedAmount.toFixed(2)
+                    });
+                    setCheckoutStep('confirm');
+                } else {
+                    alert('Invalid Ticket ID or not found.');
+                    setCheckoutStep('scan');
+                }
+            } catch (error) {
+                console.error("Scan Error", error);
+                alert("Error fetching ticket details.");
+                setCheckoutStep('scan');
+            }
+        }
+    };
+
+    const handleConfirmExit = async (method) => {
+        if (!checkoutBooking) return;
+
+        try {
+            await bookingService.update(checkoutBooking.id, {
+                status: 'completed',
+                paymentStatus: 'Paid',
+                paymentMethod: method || checkoutBooking.paymentMethod || 'Cash', // Use new method if selected (e.g. paying cash now) or keep existing
+                endTime: new Date(),
+                totalAmount: parseFloat(checkoutBooking.calculatedAmount)
+            });
+
+            alert("Exit processed successfully! Payment Recorded.");
+            setCheckoutStep('success');
+            setTimeout(() => {
+                setShowScanner(false);
+                setCheckoutStep('scan');
+                setCheckoutBooking(null);
+                fetchBookings(); // Refresh analytics
+            }, 2000);
+
+        } catch (error) {
+            console.error("Exit Error", error);
+            alert("Failed to process exit.");
         }
     };
 
@@ -718,6 +796,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                                                 <th className="px-6 py-4">Vehicle</th>
                                                 <th className="px-6 py-4">Time</th>
                                                 <th className="px-6 py-4 text-center">Status</th>
+                                                <th className="px-6 py-4 text-center">Payment</th>
                                                 <th className="px-6 py-4 text-right">Amount</th>
                                             </tr>
                                         </thead>
@@ -763,6 +842,13 @@ export const AdminDashboard = ({ onNavigate }) => {
                                                             : (booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600')
                                                             }`}>
                                                             {booking.status === 'active' ? 'Active' : (booking.status === 'cancelled' ? 'Cancelled' : 'Completed')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <div className="text-xs font-medium text-gray-900">{booking.paymentMethod || 'Cash'}</div>
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold mt-1 ${booking.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                            }`}>
+                                                            {booking.paymentStatus || 'Pending'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 text-right font-medium text-gray-900">
@@ -864,6 +950,9 @@ export const AdminDashboard = ({ onNavigate }) => {
                             )}
                         </div>
 
+                        <Button size="sm" variant="outline" onClick={() => { setShowScanner(true); setCheckoutStep('scan'); }} className="bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+                            <Scan className="h-4 w-4 mr-2" /> Scan Ticket
+                        </Button>
                         <Button size="sm" onClick={handleOpenAddModal}>
                             <Plus className="h-4 w-4 mr-2" /> Add Stand
                         </Button>
@@ -1087,6 +1176,136 @@ export const AdminDashboard = ({ onNavigate }) => {
                             <Button className="w-full mt-4" onClick={() => window.print()}>
                                 <FileText className="h-4 w-4 mr-2" /> Print QR Code
                             </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Ticket Scanner Modal */}
+            {showScanner && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-900 text-white">
+                            <h3 className="font-bold flex items-center">
+                                <Scan className="h-5 w-5 mr-2 text-green-400" />
+                                {checkoutStep === 'scan' ? 'Scan Entry Pass' : 'Checkout & Payment'}
+                            </h3>
+                            <button onClick={() => { setShowScanner(false); setCheckoutStep('scan'); setCheckoutBooking(null); }} className="text-gray-400 hover:text-white">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col">
+                            {checkoutStep === 'scan' || checkoutStep === 'loading' ? (
+                                <div className="p-0 relative flex-1 bg-black flex items-center justify-center min-h-[400px]">
+                                    {checkoutStep === 'loading' ? (
+                                        <div className="text-white text-center">
+                                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                                            <p>Processing Ticket...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <QrReader
+                                                constraints={{ facingMode: 'environment' }}
+                                                onResult={handleScanTicket}
+                                                className="w-full h-full object-cover"
+                                                videoContainerStyle={{ height: '100%', paddingTop: 0 }}
+                                                videoStyle={{ height: '100%', objectFit: 'cover' }}
+                                            />
+                                            <div className="absolute inset-0 border-2 border-white/30 pointer-events-none flex items-center justify-center">
+                                                <div className="w-64 h-64 border-2 border-green-500 rounded-2xl relative">
+                                                    <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-green-500 -mt-1 -ml-1"></div>
+                                                    <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-green-500 -mt-1 -mr-1"></div>
+                                                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-green-500 -mb-1 -ml-1"></div>
+                                                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-green-500 -mb-1 -mr-1"></div>
+                                                </div>
+                                            </div>
+                                            <p className="absolute bottom-8 left-0 right-0 text-center text-white/80 text-sm font-medium">
+                                                Point camera at visitor's QR code
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            ) : checkoutStep === 'confirm' && checkoutBooking ? (
+                                <div className="p-6 space-y-6">
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <CheckCircle className="h-8 w-8 text-green-600" />
+                                        </div>
+                                        <h2 className="text-xl font-bold text-gray-900">Confirm Exit</h2>
+                                        <p className="text-sm text-gray-500">Review fare and collect payment</p>
+                                    </div>
+
+                                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-500">Ticket ID</span>
+                                            <span className="font-mono font-bold text-gray-900">{checkoutBooking.ticketId}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-500">Vehicle</span>
+                                            <span className="font-bold text-gray-900 capitalize flex items-center">
+                                                {checkoutBooking.vehicleType === 'car' ? <Car className="w-3 h-3 mr-1" /> : <Bike className="w-3 h-3 mr-1" />}
+                                                {checkoutBooking.vehicleNumber}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-500">Duration</span>
+                                            <span className="font-bold text-gray-900">{checkoutBooking.durationHours} Hours</span>
+                                        </div>
+                                        <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
+                                            <span className="text-gray-900 font-bold">Total Fare</span>
+                                            <span className="text-2xl font-black text-indigo-600">₹{checkoutBooking.calculatedAmount}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {/* Status of Payment */}
+                                        {checkoutBooking.paymentStatus === 'Paid' ? (
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center mb-4">
+                                                <p className="text-green-800 font-bold text-sm flex items-center justify-center">
+                                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                                    Payment Completed via {checkoutBooking.paymentMethod}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center mb-4">
+                                                <p className="text-amber-800 font-bold text-sm flex items-center justify-center">
+                                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                                    Pending Payment: Collect Cash
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {/* If already paid, standard exit. If pending, offer Cash Pay. */}
+                                            {checkoutBooking.paymentStatus !== 'Paid' && (
+                                                <button
+                                                    onClick={() => handleConfirmExit('Cash')}
+                                                    className="col-span-2 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-indigo-200 flex items-center justify-center"
+                                                >
+                                                    <IndianRupee className="w-4 h-4 mr-2" /> Collect Cash & Exit
+                                                </button>
+                                            )}
+
+                                            <button
+                                                onClick={() => handleConfirmExit(checkoutBooking.paymentMethod || 'Cash')}
+                                                className={`col-span-2 w-full py-3 rounded-xl font-bold transition-colors flex items-center justify-center ${checkoutBooking.paymentStatus === 'Paid' ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-200' : 'bg-white border-2 border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                                            >
+                                                {checkoutBooking.paymentStatus === 'Paid' ? 'Verify & Allow Exit' : 'Mark as Paid & Exit'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                // Success State
+                                <div className="p-8 flex flex-col items-center justify-center h-full text-center">
+                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6 animate-in zoom-in">
+                                        <CheckCircle className="h-10 w-10 text-green-600" />
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Gate Open!</h2>
+                                    <p className="text-gray-500">Transaction recorded successfully.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

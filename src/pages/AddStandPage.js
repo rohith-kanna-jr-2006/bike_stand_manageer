@@ -77,7 +77,7 @@ export const AddStandPage = ({ onBack }) => {
                 ownerId: user?.id || user?._id // Assign owner if logged in
             };
 
-            const response = await fetch('http://localhost:3002/api/stands', {
+            const response = await fetch('http://10.38.187.211:3002/api/stands', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

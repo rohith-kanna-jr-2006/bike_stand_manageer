@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3002/api';
+const API_URL = 'http://10.38.187.211:3002/api';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -60,6 +60,10 @@ export const bookingService = {
     },
     update: async (id, data) => {
         const response = await api.put(`/bookings/${id}`, data);
+        return response.data;
+    },
+    getByTicketId: async (ticketId) => {
+        const response = await api.get(`/bookings/ticket/${ticketId}`);
         return response.data;
     },
 };
