@@ -64,6 +64,10 @@ app.get('/api/users/:id', getUser);
 app.post('/api/auth/register', register);
 app.post('/api/auth/login', login);
 
+// Payment Routes
+const paymentRoutes = require('./routes/paymentRoutes');
+app.use('/api/payment', paymentRoutes);
+
 app.post('/api/auth/google', async (req, res) => {
   const { token, role } = req.body; // The access token sent from frontend
 

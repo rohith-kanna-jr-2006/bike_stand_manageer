@@ -7,8 +7,14 @@ import { UserDashboard } from './pages/UserDashboard';
 import { SettingsPage } from './pages/SettingsPage';
 import { AddStandPage } from './pages/AddStandPage';
 import { Layout } from './components/Layout';
+import { Layout } from './components/Layout';
 import { UserRole } from './types';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { AboutUs } from './pages/legal/AboutUs';
+import { ContactUs } from './pages/legal/ContactUs';
+import { PrivacyPolicy } from './pages/legal/PrivacyPolicy';
+import { Terms } from './pages/legal/Terms';
+import { RefundPolicy } from './pages/legal/RefundPolicy';
 
 const AppContent = () => {
     const { isAuthenticated, user, isLoading } = useAuth();
@@ -35,6 +41,16 @@ const AppContent = () => {
                 <SettingsPage />
             ) : view === 'add-stand' ? (
                 <AddStandPage onBack={() => setView('dashboard')} />
+            ) : view === 'about-us' ? (
+                <AboutUs />
+            ) : view === 'contact-us' ? (
+                <ContactUs />
+            ) : view === 'privacy-policy' ? (
+                <PrivacyPolicy />
+            ) : view === 'terms' ? (
+                <Terms />
+            ) : view === 'refund-policy' ? (
+                <RefundPolicy />
             ) : user?.role === UserRole.ADMIN ? (
                 <AdminDashboard onNavigate={setView} />
             ) : (

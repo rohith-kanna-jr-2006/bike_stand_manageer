@@ -205,50 +205,40 @@ export const UserDashboard = ({ onNavigate }) => {
 
         setIsGenerating(true);
 
-        const bookingData = {
+        const isOnline = paymentMethod === 'UPI'; // Assuming 'UPI' triggers the online flow
+
+        // Initial Booking Payload
+        // Note: We set paymentStatus to 'Pending' initially for all. 
+        // If Cash, it stays Pending. If Online, we update it upon success.
+        const bookingPayload = {
             userId: user.id || user._id,
             userName: user.name,
-            standId: selectedStand.id,
+            stand: selectedStand.id,
             standName: selectedStand.name,
-            standOwnerId: selectedStand.ownerId, // CRITICAL: Pass the Admin ID so they see this booking
+            standOwnerId: selectedStand.ownerId,
             vehicleType: selectedBikeType === 'standard' ? 'two-wheeler' : (selectedBikeType === 'car' ? 'car' : 'two-wheeler'),
             vehicleNumber: vehicleNumber,
             vehicleModel: vehicleModel,
             status: 'active',
-            totalAmount: 0,
+            totalAmount: selectedStand?.rates?.[selectedBikeType === 'car' ? 'car' : 'bike'] || 10, // Default amount for payment
             paymentMethod: paymentMethod,
-            paymentStatus: paymentMethod === 'Cash' ? 'Pending' : 'Paid'
+            paymentStatus: 'Pending'
         };
 
         try {
-            let newTicketId;
-
+            // 1. Create Booking (Pending State)
             const response = await fetch('http://10.38.187.211:3002/api/bookings', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    userId: user.id || user._id,
-                    userName: user.name,
-                    stand: selectedStand.id, // Backend expects 'stand' (ObjectId)
-                    standName: selectedStand.name,
-                    standOwnerId: selectedStand.ownerId,
-                    vehicleType: selectedBikeType === 'standard' ? 'two-wheeler' : (selectedBikeType === 'car' ? 'car' : 'two-wheeler'),
-                    vehicleNumber: vehicleNumber,
-                    vehicleModel: vehicleModel,
-                    status: 'active',
-                    totalAmount: 0,
-                    paymentMethod: paymentMethod,
-                    paymentStatus: paymentMethod === 'Cash' ? 'Pending' : 'Paid'
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bookingPayload),
             });
 
             const data = await response.json();
 
             if (data.success) {
-                newTicketId = data.data.ticketId; // Display ID
-                const mongoId = data.data._id;    // API ID
+                const newTicketId = data.data.ticketId;
+                const mongoId = data.data._id;
+                const bookingAmount = bookingPayload.totalAmount; // Use the amount we sent
 
                 const newTicketLocal = {
                     id: mongoId,
@@ -262,17 +252,107 @@ export const UserDashboard = ({ onNavigate }) => {
                     standId: selectedStand.id,
                     status: 'active',
                     paymentMethod: paymentMethod,
-                    paymentStatus: paymentMethod === 'Cash' ? 'Pending' : 'Paid'
+                    paymentStatus: 'Pending',
+                    amount: bookingAmount
                 };
 
-                // Save State & Persistence
-                setGeneratedTicket(newTicketId);
-                setActiveTicketDetails(newTicketLocal);
-                saveActiveTicketLocal(newTicketLocal);
+                // Helper to Finish Flow
+                const finishSuccess = (status = 'Pending') => {
+                    newTicketLocal.paymentStatus = status;
 
-                setIsGenerating(false);
-                setShowTicketModal(false);
-                setShowSuccessModal(true);
+                    setGeneratedTicket(newTicketId);
+                    setActiveTicketDetails(newTicketLocal);
+                    saveActiveTicketLocal(newTicketLocal);
+
+                    setIsGenerating(false);
+                    setShowTicketModal(false);
+                    setShowSuccessModal(true);
+                };
+
+                if (isOnline) {
+                    // 2. Initiate Razorpay Payment
+                    try {
+                        const orderRes = await fetch('http://10.38.187.211:3002/api/payment/create-order', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                amount: bookingAmount,
+                                bookingId: mongoId
+                            })
+                        });
+                        const orderData = await orderRes.json();
+
+                        if (orderData.success) {
+                            const options = {
+                                key: orderData.key_id,
+                                amount: orderData.data.amount,
+                                currency: orderData.data.currency,
+                                name: "SecurePark",
+                                description: `Parking at ${selectedStand.name}`,
+                                order_id: orderData.data.id,
+                                handler: async function (response) {
+                                    // 3. Verify Payment
+                                    try {
+                                        const verifyRes = await fetch('http://10.38.187.211:3002/api/payment/verify-payment', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                razorpay_order_id: response.razorpay_order_id,
+                                                razorpay_payment_id: response.razorpay_payment_id,
+                                                razorpay_signature: response.razorpay_signature,
+                                                bookingId: mongoId
+                                            })
+                                        });
+                                        const verifyData = await verifyRes.json();
+
+                                        if (verifyData.success) {
+                                            finishSuccess('Paid');
+                                        } else {
+                                            alert("Payment Verification Failed. Ticket Generated but Unpaid.");
+                                            finishSuccess('Pending');
+                                        }
+                                    } catch (vErr) {
+                                        console.error("Verification Error:", vErr);
+                                        finishSuccess('Pending');
+                                    }
+                                },
+                                prefill: {
+                                    name: user.name,
+                                    email: user.email || 'user@example.com',
+                                    contact: user.phone || '9999999999'
+                                },
+                                theme: {
+                                    color: "#4f46e5"
+                                },
+                                modal: {
+                                    ondismiss: function () {
+                                        setIsGenerating(false);
+                                        // User closed modal, ticket is still pending
+                                        finishSuccess('Pending');
+                                    }
+                                }
+                            };
+
+                            const rzp = new window.Razorpay(options);
+                            rzp.on('payment.failed', function (response) {
+                                alert(`Payment Failed: ${response.error.description}`);
+                                setIsGenerating(false);
+                                finishSuccess('Pending');
+                            });
+                            rzp.open();
+
+                        } else {
+                            throw new Error("Failed to initiate payment order");
+                        }
+                    } catch (payErr) {
+                        console.error("Payment Order Error:", payErr);
+                        alert("Could not start online payment. Ticket created as Pending.");
+                        finishSuccess('Pending');
+                    }
+                } else {
+                    // Cash Flow
+                    finishSuccess('Pending');
+                }
 
             } else {
                 throw new Error(data.error || "Failed to create booking");
